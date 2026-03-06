@@ -1,4 +1,21 @@
 {
-    "downloadlink": "https://bit.ly/salaty1st",
-    "version": "1.0.0.2"
+  "version": "1.0.0",
+  "version_code": 1,
+  "release_notes": "Initial release of Salaty prayer times application",
+  "release_date": "2024-01-15",
+  "download_url": "https://github.com/eng-salem/Salaty1st/releases/latest",
+  "min_supported_version": "1.0.0",
+  "features": [
+    "Prayer times calculation",
+    "Qibla direction",
+    "Islamic calendar",
+    "Athan notifications",
+    "Multiple calculation methods"
+  ],
+  "changelog": [
+    "Initial release with core prayer time functionality",
+    "Support for 6 major calculation methods",
+    "Offline prayer time calculation",
+    "City database with 23,000+ cities"
+  ]
 }
