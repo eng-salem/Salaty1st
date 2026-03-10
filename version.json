@@ -1,21 +1,40 @@
 {
-  "version": "1.0.0",
-  "version_code": 1,
-  "release_notes": "Initial release of Salaty prayer times application",
-  "release_date": "2024-01-15",
+  "version": "1.0.6",
+  "version_code": 6,
+  "release_notes": "NEW: Duaa After Athan feature! Automatically play spiritual duas after athan completes. Plus improved reminder sounds and simplified UI.",
+  "release_date": "2026-03-10",
   "download_url": "https://github.com/eng-salem/Salaty1st/releases/latest",
+  "screenshot_url": "https://raw.githubusercontent.com/eng-salem/Salaty1st/main/salaty.first.HD.png",
+  "installer": "setup.exe",
   "min_supported_version": "1.0.0",
   "features": [
-    "Prayer times calculation",
-    "Qibla direction",
-    "Islamic calendar",
-    "Athan notifications",
-    "Multiple calculation methods"
+    "Prayer times calculation for 6 major methods",
+    "Asr method selection (Shafii/Hanafi)",
+    "Before/After prayer reminders with notifications",
+    "Hijri date display with ±1 day adjustment",
+    "Customizable widget and notification opacity",
+    "Toast notifications with settings quick access",
+    "IP-based location detection",
+    "Geocoding address search",
+    "Athan sound notifications",
+    "Duaa after Athan - Automatic spiritual duas (NEW in v1.0.6)",
+    "Summer time adjustment",
+    "Offline prayer time calculation",
+    "City database with 23,000+ cities",
+    "Automatic update checking",
+    "Islamic quotes with audio notification",
+    "Automatic upgrades (no manual uninstall)"
   ],
   "changelog": [
-    "Initial release with core prayer time functionality",
-    "Support for 6 major calculation methods",
-    "Offline prayer time calculation",
-    "City database with 23,000+ cities"
+    "NEW: Duaa After Athan feature - auto-play duas after athan completes",
+    "NEW: Play/Stop toggle button for duaa preview in settings",
+    "NEW: Multiple duaa files support (*duaa*.mp3 pattern)",
+    "IMPROVED: Reminder notifications now use Reminder0.mp3 exclusively",
+    "IMPROVED: Clearer distinction between reminders and athan sounds",
+    "IMPROVED: Simplified duaa settings UI with single toggle button",
+    "DEFAULT: Duaa feature enabled by default for spiritual benefit",
+    "FIXED: Reminder notifications playing wrong audio",
+    "FIXED: Duaa playback control issues",
+    "FIXED: Settings persistence for duaa selection"
   ]
 }
