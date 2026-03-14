@@ -1,8 +1,8 @@
 {
-  "version": "1.0.6",
-  "version_code": 6,
-  "release_notes": "NEW: Duaa After Athan feature! Automatically play spiritual duas after athan completes. Plus improved reminder sounds and simplified UI.",
-  "release_date": "2026-03-10",
+  "version": "1.0.10",
+  "version_code": 10,
+  "release_notes": "NEW: Cairo font in toast notifications for better Arabic text rendering. Enhanced athan notifications with toast at prayer time. Plus keyboard shortcut (Ctrl+T) to test reminders.",
+  "release_date": "2026-03-14",
   "download_url": "https://github.com/eng-salem/Salaty1st/releases/latest",
   "screenshot_url": "https://raw.githubusercontent.com/eng-salem/Salaty1st/main/salaty.first.HD.png",
   "installer": "setup.exe",
@@ -17,24 +17,24 @@
     "IP-based location detection",
     "Geocoding address search",
     "Athan sound notifications",
-    "Duaa after Athan - Automatic spiritual duas (NEW in v1.0.6)",
+    "Duaa after Athan - Automatic spiritual duas",
     "Summer time adjustment",
     "Offline prayer time calculation",
     "City database with 23,000+ cities",
     "Automatic update checking",
     "Islamic quotes with audio notification",
+    "Cairo font support for Arabic text (NEW in v1.0.10)",
+    "Keyboard shortcut to test athan (Ctrl+T)",
     "Automatic upgrades (no manual uninstall)"
   ],
   "changelog": [
-    "NEW: Duaa After Athan feature - auto-play duas after athan completes",
-    "NEW: Play/Stop toggle button for duaa preview in settings",
-    "NEW: Multiple duaa files support (*duaa*.mp3 pattern)",
-    "IMPROVED: Reminder notifications now use Reminder0.mp3 exclusively",
-    "IMPROVED: Clearer distinction between reminders and athan sounds",
-    "IMPROVED: Simplified duaa settings UI with single toggle button",
-    "DEFAULT: Duaa feature enabled by default for spiritual benefit",
-    "FIXED: Reminder notifications playing wrong audio",
-    "FIXED: Duaa playback control issues",
-    "FIXED: Settings persistence for duaa selection"
+    "NEW: Cairo font in toast notifications for better Arabic rendering",
+    "NEW: Toast notification appears when athan plays at prayer time",
+    "NEW: Keyboard shortcut Ctrl+T to test athan notification",
+    "IMPROVED: Larger font sizes in toast notifications (16/14/12)",
+    "IMPROVED: Font style set to normal (no italic)",
+    "FIXED: Font embedding as WPF resource for proper rendering",
+    "FIXED: Athan sound plays once when prayer time occurs",
+    "FIXED: Setup upgrade path with REINSTALLMODE support"
   ]
 }
