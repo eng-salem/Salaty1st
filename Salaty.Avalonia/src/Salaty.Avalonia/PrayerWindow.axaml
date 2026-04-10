@@ -1,0 +1,24 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="Salaty.First.PrayerWindow"
+        Title="Salaty First"
+        Width="200" Height="200"
+        Background="#1a1a1a">
+
+    <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+        <TextBlock Text="FAJR" 
+                   FontSize="18" 
+                   FontWeight="Bold"
+                   Foreground="White"
+                   HorizontalAlignment="Center"/>
+        <TextBlock Text="00:00:00" 
+                   FontSize="16" 
+                   Foreground="#4FACFE"
+                   HorizontalAlignment="Center"
+                   Margin="0,8,0,4"/>
+        <TextBlock Text="1 Ramadan 1445" 
+                   FontSize="12" 
+                   Foreground="#AAFFFFFF"
+                   HorizontalAlignment="Center"/>
+    </StackPanel>
+</Window>

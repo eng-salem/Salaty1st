@@ -1,0 +1,357 @@
+Comparing files C:\USERS\ADMINISTRATOR\DESKTOP\PRAYERWIDGET\PRAYERWIDGET\MainWindow.xaml.vb.backup_BEFORE_PERF_FIXES and C:\USERS\ADMINISTRATOR\DESKTOP\PRAYERWIDGET\PRAYERWIDGET\MAINWINDOW.XAML.VB
+***** C:\USERS\ADMINISTRATOR\DESKTOP\PRAYERWIDGET\PRAYERWIDGET\MainWindow.xaml.vb.backup_BEFORE_PERF_FIXES
+Imports System.IO
+
+***** C:\USERS\ADMINISTRATOR\DESKTOP\PRAYERWIDGET\PRAYERWIDGET\MAINWINDOW.XAML.VB
+Imports System.IO
+Imports System.Collections.Concurrent
+
+*****
+
+***** C:\USERS\ADMINISTRATOR\DESKTOP\PRAYERWIDGET\PRAYERWIDGET\MainWindow.xaml.vb.backup_BEFORE_PERF_FIXES
+
+    Private Sub WriteLog(message As String)
+        Try
+            File.AppendAllText(_logPath, $"{DateTime.Now:HH:mm:ss.fff} {message}{Environment.NewLine}")
+            Console.WriteLine($"[LOG] {message}")
+        Catch ex As Exception
+            Console.WriteLine($"[LOG ERROR] {ex.Message}")
+        End Try
+    End Sub
+
+***** C:\USERS\ADMINISTRATOR\DESKTOP\PRAYERWIDGET\PRAYERWIDGET\MAINWINDOW.XAML.VB
+
+    ' Async logging queue to prevent UI thread blocking
+    Private ReadOnly _logQueue As New ConcurrentQueue(Of String)()
+    Private _logFlushTimer As DispatcherTimer
+
+    ' Event handler references for proper cleanup (Fix Issue 1: Memory Leak)
+    Private _mediaPlayerMediaEndedHandler As EventHandler
+    Private _mediaPlayerMediaFailedHandler As EventHandler(Of System.Windows.Media.ExceptionEventArgs)
+    Private _duaPlayerMediaEndedHandler As EventHandler
+
+    ' Cached brushes to prevent GC pressure (Fix Issue 3: Brush Allocations)
+    Private ReadOnly _brushBlue As New SolidColorBrush(WpfColor.FromRgb(79, 172, 254))
+    Private ReadOnly _brushYellow As New SolidColorBrush(WpfColor.FromRgb(255, 193, 7))
+    Private ReadOnly _brushOrange As New SolidColorBrush(WpfColor.FromRgb(255, 152, 0))
+    Private ReadOnly _brushRed As New SolidColorBrush(WpfColor.FromRgb(244, 67, 54))
+
+*****
+
+***** C:\USERS\ADMINISTRATOR\DESKTOP\PRAYERWIDGET\PRAYERWIDGET\MainWindow.xaml.vb.backup_BEFORE_PERF_FIXES
+
+    Public Sub New()
+        InitializeComponent()
+        _settingsManager = New SettingsManager()
+        _prayerApi = New PrayerApiService()
+        _player = New SoundPlayer()
+        
+        ' Initialize MediaPlayer on UI thread for proper WPF integration
+        Me.Dispatcher.Invoke(Sub()
+            _mediaPlayer = New MediaPlayer()
+        End Sub)
+
+        ' Initialize localization
+        InitializeLocalization()
+
+    End Sub
+***** C:\USERS\ADMINISTRATOR\DESKTOP\PRAYERWIDGET\PRAYERWIDGET\MAINWINDOW.XAML.VB
+
+    ' Fix Issue 2: Async logging to prevent UI thread blocking
+    Private Sub WriteLog(message As String)
+        Try
+            ' Queue log message instead of writing synchronously
+            _logQueue.Enqueue($"{DateTime.Now:HH:mm:ss.fff} {message}")
+            Console.WriteLine($"[LOG] {message}")
+        Catch ex As Exception
+            Console.WriteLine($"[LOG ERROR] {ex.Message}")
+        End Try
+    End Sub
+*****
+
+***** C:\USERS\ADMINISTRATOR\DESKTOP\PRAYERWIDGET\PRAYERWIDGET\MainWindow.xaml.vb.backup_BEFORE_PERF_FIXES
+
+    Private Sub InitializeLocalization()
+        ' Load saved language or default to English
+        Dim savedLanguage = LocalizationService.GetSavedLanguage()
+        LocalizationService.Initialize(savedLanguage)
+
+        ' Apply translations to context menu
+        ApplyTranslations()
+    End Sub
+***** C:\USERS\ADMINISTRATOR\DESKTOP\PRAYERWIDGET\PRAYERWIDGET\MAINWINDOW.XAML.VB
+
+    ' Flush log queue asynchronously (called periodically)
+    Private Sub FlushLogQueue()
+        If _logQueue.IsEmpty Then Return
+
+        Dim messages As New List(Of String)()
+        Dim msg As String = Nothing
+        While _logQueue.TryDequeue(msg)
+            messages.Add(msg)
+        End While
+
+        If messages.Count > 0 Then
+            Try
+                ' Write to file on background thread to avoid UI blocking
+                Task.Run(Sub()
+                    Try
+                        File.AppendAllLines(_logPath, messages)
+                    Catch ex As Exception
+                        Console.WriteLine($"[FLUSH ERROR] {ex.Message}")
+                    End Try
+                End Sub)
+            Catch ex As Exception
+                Console.WriteLine($"[FLUSH ERROR] {ex.Message}")
+            End Try
+        End If
+    End Sub
+*****
+
+***** C:\USERS\ADMINISTRATOR\DESKTOP\PRAYERWIDGET\PRAYERWIDGET\MainWindow.xaml.vb.backup_BEFORE_PERF_FIXES
+
+    Private Sub ApplyTranslations()
+***** C:\USERS\ADMINISTRATOR\DESKTOP\PRAYERWIDGET\PRAYERWIDGET\MAINWINDOW.XAML.VB
+
+    ' Start the log flush timer
+    Private Sub StartLogFlushTimer()
+        _logFlushTimer = New DispatcherTimer()
+        _logFlushTimer.Interval = TimeSpan.FromSeconds(2)
+        AddHandler _logFlushTimer.Tick, Sub(s, e) FlushLogQueue()
+        _logFlushTimer.Start()
+    End Sub
+
+    Public Sub New()
+        InitializeComponent()
+        _settingsManager = New SettingsManager()
+        _prayerApi = New PrayerApiService()
+        _player = New SoundPlayer()
+        
+        ' Initialize MediaPlayer on UI thread for proper WPF integration
+        Me.Dispatcher.Invoke(Sub()
+            _mediaPlayer = New MediaPlayer()
+        End Sub)
+
+        ' Initialize localization
+        InitializeLocalization()
+
+    End Sub
+
+    Private Sub InitializeLocalization()
+        ' Load saved language or default to English
+        Dim savedLanguage = LocalizationService.GetSavedLanguage()
+        LocalizationService.Initialize(savedLanguage)
+
+        ' Apply translations to context menu
+        ApplyTranslations()
+    End Sub
+
+    Private Sub ApplyTranslations()
+*****
+
+***** C:\USERS\ADMINISTRATOR\DESKTOP\PRAYERWIDGET\PRAYERWIDGET\MainWindow.xaml.vb.backup_BEFORE_PERF_FIXES
+
+        ' Color based on percentage (changes as time progresses)
+        If percentage >= 90 Then
+            ProgressArc.Stroke = New SolidColorBrush(WpfColor.FromRgb(244, 67, 54)) ' Red (last 10%)
+        ElseIf percentage >= 75 Then
+            ProgressArc.Stroke = New SolidColorBrush(WpfColor.FromRgb(255, 152, 0)) ' Orange (10-25%)
+        ElseIf percentage >= 50 Then
+            ProgressArc.Stroke = New SolidColorBrush(WpfColor.FromRgb(255, 193, 7)) ' Yellow (25-50%)
+        Else
+            ProgressArc.Stroke = New SolidColorBrush(WpfColor.FromRgb(79, 172, 254)) ' Blue (50%+)
+        End If
+***** C:\USERS\ADMINISTRATOR\DESKTOP\PRAYERWIDGET\PRAYERWIDGET\MAINWINDOW.XAML.VB
+
+        ' Fix Issue 3: Use cached brushes instead of creating new ones (prevents GC pressure)
+        If percentage >= 90 Then
+            ProgressArc.Stroke = _brushRed ' Red (last 10%)
+        ElseIf percentage >= 75 Then
+            ProgressArc.Stroke = _brushOrange ' Orange (10-25%)
+        ElseIf percentage >= 50 Then
+            ProgressArc.Stroke = _brushYellow ' Yellow (25-50%)
+        Else
+            ProgressArc.Stroke = _brushBlue ' Blue (50%+)
+        End If
+*****
+
+***** C:\USERS\ADMINISTRATOR\DESKTOP\PRAYERWIDGET\PRAYERWIDGET\MainWindow.xaml.vb.backup_BEFORE_PERF_FIXES
+            Me.Dispatcher.Invoke(Sub()
+                _mediaPlayer.Open(New Uri(soundPath))
+***** C:\USERS\ADMINISTRATOR\DESKTOP\PRAYERWIDGET\PRAYERWIDGET\MAINWINDOW.XAML.VB
+            Me.Dispatcher.Invoke(Sub()
+                ' Fix Issue 1: Remove existing handlers first to prevent memory leaks
+                If _mediaPlayerMediaEndedHandler IsNot Nothing Then
+                    RemoveHandler _mediaPlayer.MediaEnded, _mediaPlayerMediaEndedHandler
+                End If
+                If _mediaPlayerMediaFailedHandler IsNot Nothing Then
+                    RemoveHandler _mediaPlayer.MediaFailed, _mediaPlayerMediaFailedHandler
+                End If
+
+                _mediaPlayer.Open(New Uri(soundPath))
+*****
+
+***** C:\USERS\ADMINISTRATOR\DESKTOP\PRAYERWIDGET\PRAYERWIDGET\MainWindow.xaml.vb.backup_BEFORE_PERF_FIXES
+
+                ' Add error handler for media failures
+                AddHandler _mediaPlayer.MediaFailed, Sub(s, e)
+                    Console.WriteLine($"[PlayAthanForPrayer] MediaFailed: {e.ErrorException?.Message}")
+***** C:\USERS\ADMINISTRATOR\DESKTOP\PRAYERWIDGET\PRAYERWIDGET\MAINWINDOW.XAML.VB
+
+                ' Fix Issue 1: Store handler references for proper cleanup
+                _mediaPlayerMediaFailedHandler = Sub(s As Object, e As System.Windows.Media.ExceptionEventArgs)
+                    Console.WriteLine($"[PlayAthanForPrayer] MediaFailed: {e.ErrorException?.Message}")
+*****
+
+***** C:\USERS\ADMINISTRATOR\DESKTOP\PRAYERWIDGET\PRAYERWIDGET\MainWindow.xaml.vb.backup_BEFORE_PERF_FIXES
+                    _isAthanPlaying = False
+                End Sub
+
+***** C:\USERS\ADMINISTRATOR\DESKTOP\PRAYERWIDGET\PRAYERWIDGET\MAINWINDOW.XAML.VB
+                    _isAthanPlaying = False
+                    ' Remove handlers after error
+                    RemoveHandler _mediaPlayer.MediaFailed, _mediaPlayerMediaFailedHandler
+                    RemoveHandler _mediaPlayer.MediaEnded, _mediaPlayerMediaEndedHandler
+                End Sub
+                AddHandler _mediaPlayer.MediaFailed, _mediaPlayerMediaFailedHandler
+
+*****
+
+***** C:\USERS\ADMINISTRATOR\DESKTOP\PRAYERWIDGET\PRAYERWIDGET\MainWindow.xaml.vb.backup_BEFORE_PERF_FIXES
+
+                ' Reset flag when playback ends and play duaa if enabled
+                AddHandler _mediaPlayer.MediaEnded, Sub(s, e)
+                    Console.WriteLine($"[PlayAthanForPrayer] MediaEnded - playback completed")
+***** C:\USERS\ADMINISTRATOR\DESKTOP\PRAYERWIDGET\PRAYERWIDGET\MAINWINDOW.XAML.VB
+
+                ' Fix Issue 1: Store handler references for proper cleanup
+                _mediaPlayerMediaEndedHandler = Sub(s As Object, e As EventArgs)
+                    Console.WriteLine($"[PlayAthanForPrayer] MediaEnded - playback completed")
+*****
+
+***** C:\USERS\ADMINISTRATOR\DESKTOP\PRAYERWIDGET\PRAYERWIDGET\MainWindow.xaml.vb.backup_BEFORE_PERF_FIXES
+                    _isAthanPlaying = False
+                    ' Play duaa after athan if enabled
+***** C:\USERS\ADMINISTRATOR\DESKTOP\PRAYERWIDGET\PRAYERWIDGET\MAINWINDOW.XAML.VB
+                    _isAthanPlaying = False
+                    ' Remove handlers after completion
+                    RemoveHandler _mediaPlayer.MediaEnded, _mediaPlayerMediaEndedHandler
+                    RemoveHandler _mediaPlayer.MediaFailed, _mediaPlayerMediaFailedHandler
+                    ' Play duaa after athan if enabled
+*****
+
+***** C:\USERS\ADMINISTRATOR\DESKTOP\PRAYERWIDGET\PRAYERWIDGET\MainWindow.xaml.vb.backup_BEFORE_PERF_FIXES
+                End Sub
+            End Sub)
+***** C:\USERS\ADMINISTRATOR\DESKTOP\PRAYERWIDGET\PRAYERWIDGET\MAINWINDOW.XAML.VB
+                End Sub
+                AddHandler _mediaPlayer.MediaEnded, _mediaPlayerMediaEndedHandler
+            End Sub)
+*****
+
+***** C:\USERS\ADMINISTRATOR\DESKTOP\PRAYERWIDGET\PRAYERWIDGET\MainWindow.xaml.vb.backup_BEFORE_PERF_FIXES
+            _mediaPlayer.Stop()
+            _isAthanPlaying = False
+***** C:\USERS\ADMINISTRATOR\DESKTOP\PRAYERWIDGET\PRAYERWIDGET\MAINWINDOW.XAML.VB
+            _mediaPlayer.Stop()
+            ' Fix Issue 1: Clean up event handlers to prevent memory leaks
+            If _mediaPlayerMediaEndedHandler IsNot Nothing Then
+                RemoveHandler _mediaPlayer.MediaEnded, _mediaPlayerMediaEndedHandler
+                _mediaPlayerMediaEndedHandler = Nothing
+            End If
+            If _mediaPlayerMediaFailedHandler IsNot Nothing Then
+                RemoveHandler _mediaPlayer.MediaFailed, _mediaPlayerMediaFailedHandler
+                _mediaPlayerMediaFailedHandler = Nothing
+            End If
+            _isAthanPlaying = False
+*****
+
+***** C:\USERS\ADMINISTRATOR\DESKTOP\PRAYERWIDGET\PRAYERWIDGET\MainWindow.xaml.vb.backup_BEFORE_PERF_FIXES
+
+    Private Sub PlayDuaaAfterAthan()
+***** C:\USERS\ADMINISTRATOR\DESKTOP\PRAYERWIDGET\PRAYERWIDGET\MAINWINDOW.XAML.VB
+
+    Private Sub StopDuaa()
+        If _duaaPlayer IsNot Nothing Then
+            _duaaPlayer.Stop()
+            ' Fix Issue 1: Clean up event handlers to prevent memory leaks
+            If _duaPlayerMediaEndedHandler IsNot Nothing Then
+                RemoveHandler _duaaPlayer.MediaEnded, _duaPlayerMediaEndedHandler
+                _duaPlayerMediaEndedHandler = Nothing
+            End If
+            _isDuaaPlaying = False
+        End If
+    End Sub
+
+    Private Sub PlayDuaaAfterAthan()
+*****
+
+***** C:\USERS\ADMINISTRATOR\DESKTOP\PRAYERWIDGET\PRAYERWIDGET\MainWindow.xaml.vb.backup_BEFORE_PERF_FIXES
+                _duaaPlayer.Volume = volume
+                
+                _duaaPlayer.Play()
+***** C:\USERS\ADMINISTRATOR\DESKTOP\PRAYERWIDGET\PRAYERWIDGET\MAINWINDOW.XAML.VB
+                _duaaPlayer.Volume = volume
+
+                _duaaPlayer.Play()
+*****
+
+***** C:\USERS\ADMINISTRATOR\DESKTOP\PRAYERWIDGET\PRAYERWIDGET\MainWindow.xaml.vb.backup_BEFORE_PERF_FIXES
+                Console.WriteLine($"Playing duaa after athan: {duaaPath}")
+                
+                ' Auto-close toast after duaa completes
+                AddHandler _duaaPlayer.MediaEnded, Sub(s, e)
+                    Console.WriteLine("[PlayDuaaAfterAthan] MediaEnded - closing toast")
+***** C:\USERS\ADMINISTRATOR\DESKTOP\PRAYERWIDGET\PRAYERWIDGET\MAINWINDOW.XAML.VB
+                Console.WriteLine($"Playing duaa after athan: {duaaPath}")
+
+                ' Fix Issue 1: Store handler reference for proper cleanup
+                _duaPlayerMediaEndedHandler = Sub(s As Object, e As EventArgs)
+                    Console.WriteLine("[PlayDuaaAfterAthan] MediaEnded - closing toast")
+*****
+
+***** C:\USERS\ADMINISTRATOR\DESKTOP\PRAYERWIDGET\PRAYERWIDGET\MainWindow.xaml.vb.backup_BEFORE_PERF_FIXES
+                    _isDuaaPlaying = False
+                    ' Close any open toast notifications
+***** C:\USERS\ADMINISTRATOR\DESKTOP\PRAYERWIDGET\PRAYERWIDGET\MAINWINDOW.XAML.VB
+                    _isDuaaPlaying = False
+                    ' Remove handler after completion
+                    RemoveHandler _duaaPlayer.MediaEnded, _duaPlayerMediaEndedHandler
+                    ' Close any open toast notifications
+*****
+
+***** C:\USERS\ADMINISTRATOR\DESKTOP\PRAYERWIDGET\PRAYERWIDGET\MainWindow.xaml.vb.backup_BEFORE_PERF_FIXES
+                End Sub
+            Else
+***** C:\USERS\ADMINISTRATOR\DESKTOP\PRAYERWIDGET\PRAYERWIDGET\MAINWINDOW.XAML.VB
+                End Sub
+                AddHandler _duaaPlayer.MediaEnded, _duaPlayerMediaEndedHandler
+            Else
+*****
+
+***** C:\USERS\ADMINISTRATOR\DESKTOP\PRAYERWIDGET\PRAYERWIDGET\MainWindow.xaml.vb.backup_BEFORE_PERF_FIXES
+
+    Private Sub StopDuaa()
+        If _duaaPlayer IsNot Nothing Then
+            _duaaPlayer.Stop()
+            _isDuaaPlaying = False
+        End If
+    End Sub
+
+    Private Function LoadReminderSettings() As ReminderSettings
+***** C:\USERS\ADMINISTRATOR\DESKTOP\PRAYERWIDGET\PRAYERWIDGET\MAINWINDOW.XAML.VB
+
+    Private Function LoadReminderSettings() As ReminderSettings
+*****
+
+***** C:\USERS\ADMINISTRATOR\DESKTOP\PRAYERWIDGET\PRAYERWIDGET\MainWindow.xaml.vb.backup_BEFORE_PERF_FIXES
+
+        ' Initialize quote service and start quote timer
+***** C:\USERS\ADMINISTRATOR\DESKTOP\PRAYERWIDGET\PRAYERWIDGET\MAINWINDOW.XAML.VB
+
+        ' Start async log flush timer (Fix Issue 2: Prevent UI thread blocking)
+        StartLogFlushTimer()
+
+        ' Initialize quote service and start quote timer
+*****
+

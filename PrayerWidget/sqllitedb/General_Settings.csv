@@ -1,0 +1,28 @@
+Name,Value
+Prayer_Notif_Mins,"0,5,10,15,20,25,30"
+Prayer_Notif_Before_Mins,"15,0,5,5,5,5"
+Prayer_Notif_After_Mins,"15,0,10,10,10,10"
+Prayer_Notif_At_Mins,"1,0,1,1,1,1"
+Glow_At,5
+Default_XMins_Color,"255,33, 157, 198"
+Less_40Mins_Color,"255,32, 178, 178"
+Less_15Mins_Color,"255,255, 127, 39"
+Less_5Mins_Color,"255,237, 28, 36"
+Default_XMins_Alpha,255
+Less_40Mins_Alpha,255
+Less_15Mins_Alpha,255
+Less_5Mins_Alpha,255
+Startup_Windows,1
+Enable_Notification_Circle,1
+Circle_Opacity,0.9
+Circle_Opacity_Leave,0.7
+Notification_Circle_Location,0
+Athan_Name,أبو العنين شعيع
+Athan_Volume,0.5
+Athan_Design,0
+Enable_Show_Do3aa,1
+Show_Do3aa_XMins,15
+Hide_Do3aa_With_XMin,1
+Notification_Snd_Name,الله الله (سامي يوسف)
+First_Install,0
+Current_Ver,1.0.09

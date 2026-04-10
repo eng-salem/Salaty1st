@@ -1,0 +1,69 @@
+================================================================================
+PRAYERWIDGET SETUP - DEBUG vs RELEASE EXPLAINED
+================================================================================
+
+YOUR SYSTEM HAS .NET 5.0.17 INSTALLED:
+--------------------------------------
+Location: C:\Program Files\dotnet\shared\Microsoft.WindowsDesktop.App\5.0.17
+
+This is why the Debug folder works without additional installation!
+
+
+DEBUG FOLDER (Works on your system):
+------------------------------------
+Location: bin\Debug\net5.0-windows7.0\
+Files: 22 files (~5 MB)
+Type: Framework-dependent
+Requires: .NET 5.0 Runtime (already installed on your system)
+
+Why it works:
+- Uses shared .NET runtime from C:\Program Files\dotnet\shared\
+- Smaller folder size
+- Faster to copy
+- Won't work on systems without .NET 5.0
+
+
+RELEASE FOLDER (Self-contained):
+--------------------------------
+Location: bin\Release\net5.0-windows7.0\win-x64\
+Files: 291 files (~137 MB)
+Type: Self-contained
+Requires: Nothing (includes everything)
+
+Why it may not work in setup:
+- Setup project may not copy all required files
+- runtimeconfig.json points to included frameworks
+- Some files may be blocked by Windows
+
+
+RECOMMENDATION FOR YOUR SETUP:
+------------------------------
+Since you have .NET 5.0 installed, use DEBUG folder files for the MSI:
+
+1. Smaller MSI size (~30 MB instead of ~150 MB)
+2. Faster installation
+3. Works on your system
+4. For distribution, require users to install .NET 5.0 Runtime
+
+Download .NET 5.0 Runtime for users:
+https://dotnet.microsoft.com/download/dotnet/5.0
+
+
+HOW TO CHECK IF .NET 5.0 IS INSTALLED:
+--------------------------------------
+Open Command Prompt and run:
+    dotnet --list-runtimes
+
+Look for:
+    Microsoft.WindowsDesktop.App 5.0.x
+
+
+WHY INSTALLED VERSION ASKS FOR .NET:
+------------------------------------
+1. The installed app looks for shared runtime
+2. Path may not be correctly registered
+3. Windows doesn't find the runtime location
+
+FIX: Install .NET 5.0 Runtime from Microsoft website.
+
+================================================================================

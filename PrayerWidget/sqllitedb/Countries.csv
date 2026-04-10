@@ -1,0 +1,204 @@
+Country_Code,Country_Name,Method,AdjustHighLats,Elev,Country_ID
+EH,Western Sahara,1,0,1,200
+YE,Yemen,4,1,1,201
+ZM,Zambia,1,0,1,202
+ZW,Zimbabwe,1,0,1,203
+AF,Afghanistan,3,0,1,1
+AL,Albania,1,0,1,2
+DZ,algeria,2,0,1,3
+AS,American Samoa,1,0,1,4
+AD,Andorra,1,0,1,5
+AO,Angola,1,0,1,6
+AI,Anguilla,1,0,1,7
+AG,Antigua/Barbuda,1,0,1,8
+AR,Argentina,1,0,1,9
+AM,Armenia,1,0,1,10
+AW,Aruba,1,0,1,11
+AU,Australia,1,0,1,12
+AT,Austria,1,0,2,13
+AZ,Azerbaijan,1,0,1,14
+BS,Bahamas,1,0,1,15
+BH,Bahrain,4,0,1,16
+BD,Bangladesh,3,0,1,17
+BB,Barbados,1,0,1,18
+BY,Belarus,1,0,1,19
+BE,Belgium,1,0,1,20
+BZ,Belize,1,0,1,21
+BJ,Benin,1,0,1,22
+BM,Bermuda,1,0,1,23
+BT,Bhutan,1,0,1,24
+BO,Bolivia,1,0,1,25
+BA,Bosnia,1,0,1,26
+BW,Botswana,1,0,1,27
+BR,Brazil,1,0,1,28
+BN,BRUNEI DARUSSALAM,1,0,1,29
+BG,Bulgaria,1,0,1,30
+BF,Burkina Faso,1,0,1,31
+BI,Burundi,1,0,1,32
+KH,Cambodia,1,0,1,33
+CM,Cameroon,1,0,1,34
+CA,Canada,5,0,1,35
+CV,Cape Verde,1,0,1,36
+KY,Cayman Islands,1,0,1,37
+CF,Central African Republic,1,0,1,38
+TD,Chad,1,0,1,39
+CL,Chile,1,0,1,40
+CN,China,1,0,1,41
+CX,Christmas Island,1,0,1,42
+CC,Cocos (Keeling) Islands,1,0,1,43
+CO,Colombia,1,0,1,44
+KM,Comoros,1,0,1,45
+CD,"Congo, The Democratic Republic Of The",1,0,1,46
+CK,Cook Islands,1,0,1,47
+CR,Costa Rica,1,0,1,48
+CI,COTE DIVOIRE,1,0,1,49
+HR,Croatia,1,0,1,50
+CU,Cuba,1,0,1,51
+CY,Cyprus,1,0,1,52
+CZ,Czech Republic,1,0,1,53
+DK,Denmark,1,0,1,54
+DJ,Djibouti,1,0,1,55
+DM,Dominica,1,0,1,56
+DO,Dominican Republic,1,0,1,57
+TP,East Timor,1,0,1,58
+EC,Ecuador,1,0,1,59
+EG,Egypt,2,0,1,60
+SV,El Salvador,1,0,1,61
+GQ,Equatorial Guinea,1,0,1,62
+ER,Eritrea,1,0,1,63
+EE,Estonia,1,0,1,64
+ET,Ethiopia,1,0,1,65
+FO,Faeroe Islands,1,0,1,66
+FK,Falkland Islands,1,0,1,67
+FJ,Fiji,1,0,1,68
+FI,Finland,1,0,1,69
+FR,France,1,0,1,70
+GF,French Guiana,1,0,1,71
+PF,French Polynesia,1,0,1,72
+TF,French Southern Territories,1,0,1,73
+GA,Gabon,1,0,1,74
+GM,Gambia,1,0,1,75
+GE,Georgia,1,0,1,76
+DE,Germany,1,0,2,77
+GH,Ghana,1,0,1,78
+GI,Gibraltar,1,0,1,79
+GR,Greece,1,1,2,80
+GL,Greenland,1,0,1,81
+GD,Grenada,1,0,1,82
+GP,Guadeloupe,1,0,1,83
+GU,Guam,1,0,1,84
+GT,Guatemala,1,0,1,85
+GN,Guinea,1,0,1,86
+GW,Guinea-Bissau,1,0,1,87
+GY,Guyana,1,0,1,88
+HT,Haiti,1,0,1,89
+HN,Honduras,1,0,1,90
+HU,Hungary,1,0,1,91
+IS,Iceland,1,0,1,92
+IN,India,3,0,1,93
+ID,Indonesia,1,0,1,94
+IR,Iran,1,0,1,95
+IQ,Iraq,1,0,1,96
+IE,Ireland,1,0,1,97
+IT,Italy,1,0,1,98
+JM,Jamaica,1,0,1,99
+JP,Japan,1,0,1,100
+JO,Jordan,4,1,1,101
+KZ,Kazakhstan,1,0,1,102
+KE,Kenya,1,0,1,103
+KI,Kiribati,1,0,1,104
+KP,Korea Democratic peoples republic of,1,0,1,105
+KR,"Korea, Republic of",1,0,1,106
+KW,Kuwait,4,0,2,107
+KG,Kyrgyzstan,1,0,1,108
+LV,Latvia,1,0,1,109
+LB,Lebanon,1,0,1,110
+LS,Lesotho,1,0,1,111
+LR,Liberia,1,0,1,112
+LY,Libyan arab jamahiriya,2,1,1,113
+LI,Liechtenstein,1,0,1,114
+LT,Lithuania,1,0,1,115
+LU,Luxembourg,1,0,1,116
+MO,Macau,1,0,1,117
+MK,"Macedonia, the former yugoslav republic of",1,0,1,118
+MG,Madagascar,1,0,1,119
+MW,Malawi,1,0,1,120
+MY,Malaysia,1,0,1,121
+MV,Maldives,1,0,1,122
+ML,Mali,1,0,1,123
+MT,Malta,1,0,1,124
+MH,Marshall Islands,1,0,1,125
+MQ,Martinique,1,0,1,126
+MR,Mauritania,2,0,1,127
+MU,Mauritius,1,0,1,128
+YT,Mayotte,1,0,1,129
+MX,Mexico,1,0,1,130
+FM,"Micronesia, federated states of",1,0,1,131
+MD,"Moldova, republic of",1,0,1,132
+MC,Monaco,1,0,1,133
+MN,Mongolia,1,0,1,134
+MS,Montserrat,1,0,1,135
+MA,Morocco,1,0,1,136
+MZ,Mozambique,1,0,1,137
+MM,Myanmar (Burma),1,0,1,138
+NA,Namibia,1,0,1,139
+NR,Nauru,1,0,1,140
+NP,Nepal,1,0,1,141
+NL,Netherlands,1,0,1,142
+NZ,New Zealand,1,0,1,143
+NI,Nicaragua,1,0,1,144
+NE,Niger,1,0,1,145
+NG,Nigeria,2,0,1,146
+NO,Norway,1,0,2,147
+OM,Oman,4,0,1,148
+PK,Pakistan,3,0,1,149
+PW,Palau,1,0,1,150
+PS,Palestine,1,0,1,151
+PA,Panama,1,0,1,152
+PY,Paraguay,1,0,1,153
+PE,Peru,1,0,1,154
+PH,Philippines,1,0,1,155
+PL,Poland,1,0,1,156
+PT,Portugal,1,0,1,157
+QA,Qatar,4,0,1,158
+RO,Romania,1,0,1,159
+RU,Russian Federation,1,0,2,160
+RW,Rwanda,1,0,1,161
+LC,Saint Lucia,1,0,1,162
+WS,Samoa,1,0,1,163
+SA,Saudi Arabia,4,0,1,164
+SN,Senegal,1,0,1,165
+SC,Seychelles,1,0,1,166
+SG,Singapore,1,0,1,167
+SK,Slovakia,1,0,1,168
+SI,Slovenia,1,0,1,169
+SO,Somalia,1,0,1,170
+ZA,South Africa,1,0,1,171
+ES,Spain,1,0,1,172
+LK,Sri Lanka,1,0,1,173
+SD,Sudan,2,0,1,174
+SR,Suriname,1,0,1,175
+SZ,Swaziland,1,0,1,176
+SE,Sweden,1,0,2,177
+CH,Switzerland,1,0,1,178
+SY,Syrian Arab Republic,4,0,1,179
+TW,"Taiwan, Province of China",1,0,1,180
+TJ,Tajikistan,1,0,1,181
+TZ,"Tanzania, United Republic Of",1,0,1,182
+TH,Thailand,1,0,1,183
+TG,Togo,1,0,1,184
+TT,Trinidad And Tobago,1,0,1,185
+TN,Tunisia,1,1,1,186
+TR,Turkey,1,0,1,187
+TM,Turkmenistan,1,0,1,188
+TV,Tuvalu,1,0,1,189
+UG,Uganda,1,0,1,190
+UA,Ukraine,1,0,1,191
+AE,United Arab Emirates,4,0,1,192
+GB,United Kingdom,1,0,2,193
+US,United_States,5,0,1,194
+UY,Uruguay,1,0,1,195
+UZ,Uzbekistan,1,0,1,196
+VU,Vanuatu,1,0,1,197
+VE,Venezuela,1,0,1,198
+VN,Vietnam,1,0,1,199

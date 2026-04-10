@@ -1,0 +1,23 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(msbuild *)",
+      "Bash(powershell *)",
+      "Bash(dotnet *)",
+      "Bash(start-process *)",
+      "Bash(.\\salaty.first.exe)",
+      "Bash(tasklist)",
+      "Bash(findstr *)",
+      "Bash(select-object *)",
+      "Bash(type *)",
+      "Bash(start *)",
+      "Bash(timeout *)",
+      "Bash(dir *)",
+      "Bash(taskkill *)",
+      "Bash(del *)",
+      "Bash(devenv *)",
+      "Bash(\"c:\\users\\administrator\\desktop\\prayerwidget\\prayerwidget\\prayerwidget\\bin\\release\\net48\\salaty.first.exe\")"
+    ]
+  },
+  "$version": 3
+}

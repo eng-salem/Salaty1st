@@ -1,0 +1,1541 @@
+﻿Imports System.Media
+Imports System.Windows.Threading
+Imports Salaty.First.Models
+Imports Salaty.First.Services
+Imports Hardcodet.Wpf.TaskbarNotification
+Imports System.Drawing
+Imports WpfColor = System.Windows.Media.Color
+Imports System.Text
+Imports System.Windows.Media.Effects
+Imports System.Windows.Media
+Imports System.IO
+
+Public Class MainWindow
+    Inherits Window
+
+    Private _timer As DispatcherTimer
+    Private _quoteTimer As DispatcherTimer
+    Private _tabSwitchTimer As DispatcherTimer
+    Private _nextPrayerTime As DateTime
+    Private _previousPrayerTime As DateTime
+    Public _settingsManager As SettingsManager
+    Private _settings As WidgetSettings
+    Private _prayerApi As PrayerApiService
+    Private _reminderSettings As ReminderSettings
+    Private _player As SoundPlayer
+    Private _mediaPlayer As MediaPlayer
+    Private _reminderShown As New HashSet(Of String)()
+    Private _lastReminderCheck As DateTime = DateTime.MinValue
+    Private _isAthanPlaying As Boolean = False
+    Private _hasPlayedAthanForCurrentPrayer As Boolean = False
+    Private _quoteService As QuoteService
+    Private _isCurrentTab As Boolean = True
+    Private _tabSwitchCountdown As Integer = 60
+
+    ' Store prayer times for tooltip
+    Private _currentPrayerTimes As DailyPrayerTimes
+
+    ' Widget visibility state
+    Public _widgetVisible As Boolean = True
+
+    ' Prevent duplicate update checks
+    Private _updateChecked As Boolean = False
+
+    ' Debug log file path - use temp directory for guaranteed write access
+    Private ReadOnly _logPath As String = Path.Combine(Path.GetTempPath(), "prayer_widget_debug.log")
+
+    Private Sub WriteLog(message As String)
+        Try
+            File.AppendAllText(_logPath, $"{DateTime.Now:HH:mm:ss.fff} {message}{Environment.NewLine}")
+            Console.WriteLine($"[LOG] {message}")
+        Catch ex As Exception
+            Console.WriteLine($"[LOG ERROR] {ex.Message}")
+        End Try
+    End Sub
+
+    Private ReadOnly ColorNormal As SolidColorBrush = New SolidColorBrush(WpfColor.FromRgb(79, 172, 254))
+    Private ReadOnly ColorMedium As SolidColorBrush = New SolidColorBrush(WpfColor.FromRgb(255, 193, 7))
+    Private ReadOnly ColorCritical As SolidColorBrush = New SolidColorBrush(WpfColor.FromRgb(255, 152, 0))
+    Private ReadOnly ColorDanger As SolidColorBrush = New SolidColorBrush(WpfColor.FromRgb(244, 67, 54))
+    Private ReadOnly ColorGlow As SolidColorBrush = New SolidColorBrush(WpfColor.FromRgb(0, 255, 0))
+
+    Public Sub New()
+        InitializeComponent()
+        _settingsManager = New SettingsManager()
+        _prayerApi = New PrayerApiService()
+        _player = New SoundPlayer()
+        
+        ' Initialize MediaPlayer on UI thread for proper WPF integration
+        Me.Dispatcher.Invoke(Sub()
+            _mediaPlayer = New MediaPlayer()
+        End Sub)
+
+        ' Initialize localization
+        InitializeLocalization()
+
+    End Sub
+
+    Private Sub InitializeLocalization()
+        ' Load saved language or default to English
+        Dim savedLanguage = LocalizationService.GetSavedLanguage()
+        LocalizationService.Initialize(savedLanguage)
+
+        ' Apply translations to context menu
+        ApplyTranslations()
+    End Sub
+
+    Private Sub ApplyTranslations()
+        ' Context menu items
+        If MenuSettings IsNot Nothing Then
+            MenuSettings.Header = LocalizationService.GetString("settings_menu", "Settings")
+        End If
+        If MenuShowAllPrayers IsNot Nothing Then
+            MenuShowAllPrayers.Header = LocalizationService.GetString("show_all_prayers", "All Prayer Times")
+        End If
+        If MenuFacebook IsNot Nothing Then
+            MenuFacebook.Header = LocalizationService.GetString("facebook_page", "Facebook Page")
+        End If
+        If MenuHideWidget IsNot Nothing Then
+            MenuHideWidget.Header = LocalizationService.GetString("hide_widget", "Hide Widget")
+        End If
+        If MenuClose IsNot Nothing Then
+            MenuClose.Header = LocalizationService.GetString("close_widget", "Close Widget")
+        End If
+
+        ' Notify icon menu items - access through NotifyIcon resource
+        Dim notifyIcon As TaskbarIcon = TryCast(FindResource("NotifyIcon"), TaskbarIcon)
+        If notifyIcon IsNot Nothing AndAlso notifyIcon.ContextMenu IsNot Nothing Then
+            Dim items = notifyIcon.ContextMenu.Items
+            If items.Count >= 7 Then
+                ' Item 0: Show/Hide Widget
+                CType(items(0), MenuItem).Header = LocalizationService.GetString("show_widget_menu", "Show Widget")
+                ' Item 2: Settings
+                CType(items(2), MenuItem).Header = LocalizationService.GetString("settings_menu", "Settings")
+                ' Item 3: All Prayer Times
+                CType(items(3), MenuItem).Header = LocalizationService.GetString("show_all_prayers", "All Prayer Times")
+                ' Item 5: Facebook Page
+                CType(items(5), MenuItem).Header = LocalizationService.GetString("facebook_page", "Facebook Page")
+                ' Item 7: Close Widget
+                CType(items(7), MenuItem).Header = LocalizationService.GetString("close_widget", "Close Widget")
+            End If
+
+            ' Update tooltip
+            notifyIcon.ToolTipText = LocalizationService.GetString("prayer_widget", "Prayer Widget")
+        End If
+
+        ' Update window title
+        Me.Title = LocalizationService.GetString("app_title", "Salaty First")
+    End Sub
+
+    Private Sub Window_Closing(sender As Object, e As System.ComponentModel.CancelEventArgs)
+        ' Clean up notify icon
+        Dim notifyIcon As TaskbarIcon = TryCast(FindResource("NotifyIcon"), TaskbarIcon)
+        If notifyIcon IsNot Nothing Then
+            notifyIcon.Dispose()
+        End If
+    End Sub
+
+    Private Sub ShowSettingsWindow(Optional firstRun As Boolean = False)
+        Dim settingsWindow As New SettingsWindow(_settingsManager, isFirstRun:=firstRun)
+        settingsWindow.Owner = Me
+
+        If settingsWindow.ShowDialog() = True Then
+            ' Reload settings from database
+            _settings = _settingsManager.LoadSettings()
+            Dim showWidget As String = _settingsManager.GetSetting("ShowWidget", "1")
+            Dim shouldBeVisible As Boolean = (showWidget = "1")
+
+            Console.WriteLine($"After Settings: ShowWidget={showWidget}, shouldBeVisible={shouldBeVisible}, current _widgetVisible={_widgetVisible}")
+
+            ' Apply widget visibility
+            If shouldBeVisible <> _widgetVisible Then
+                _widgetVisible = shouldBeVisible
+            End If
+
+            If _widgetVisible Then
+                Me.Show()
+                Me.Topmost = True
+                Me.Activate()
+                Console.WriteLine("Widget shown")
+            Else
+                Me.Hide()
+                Console.WriteLine("Widget hidden")
+            End If
+
+            ' Apply all settings changes
+            ApplyAllSettingsChanges()
+
+            ' Re-apply translations in case language was changed
+            InitializeLocalization()
+            UpdateToggleMenuText(If(_widgetVisible, LocalizationService.GetString("hide_widget", "Hide Widget"), LocalizationService.GetString("show_widget_menu", "Show Widget")))
+        End If
+    End Sub
+
+    ''' <summary>
+    ''' Apply all settings changes after settings window is closed
+    ''' </summary>
+    Private Sub ApplyAllSettingsChanges()
+        Try
+            Console.WriteLine("=== Applying Settings Changes ===")
+
+            ' Update location display
+            LblLocation.Text = $"{_settings.City}, {_settings.Country}"
+            Console.WriteLine($"  Location: {_settings.City}, {_settings.Country}")
+
+            ' Apply size settings FIRST (before opacity, as opacity depends on background)
+            ApplySettings()
+            Console.WriteLine($"  Size: {_settings.Size} ({_settings.WindowWidth}x{_settings.WindowHeight})")
+
+            ' Apply opacity settings
+            ApplyOpacitySettings()
+            Console.WriteLine($"  Widget Opacity: {_settings.WidgetOpacity}%")
+            Console.WriteLine($"  Notification Opacity: {_settings.NotificationOpacity}%")
+
+            ' Apply progress ring visibility
+            Dim showProgressRing As Boolean = CBool(_settingsManager.GetDoubleSetting("ShowProgressRing", 1))
+            ProgressArc.Visibility = If(showProgressRing, Visibility.Visible, Visibility.Collapsed)
+            Console.WriteLine($"  ShowProgressRing: {showProgressRing}")
+
+            ' Reload prayer times with new settings
+            LoadPrayerTimesAsync()
+            Console.WriteLine("  Prayer times reloaded")
+
+            Console.WriteLine("=== Settings Applied Successfully ===")
+        Catch ex As Exception
+            Console.WriteLine("Error applying settings: " & ex.Message)
+        End Try
+    End Sub
+
+    Private Sub ShowAllPrayersWindow()
+        If _currentPrayerTimes IsNot Nothing Then
+            Dim allPrayersWindow As New Salaty.First.Forms.ShowAllPrayersWindow(_currentPrayerTimes, _settings.City, _settings.Country)
+            allPrayersWindow.Owner = Me
+            allPrayersWindow.ShowDialog()
+        Else
+            MessageBox.Show("Prayer times not loaded yet. Please wait a moment.", "Info",
+                       MessageBoxButton.OK, MessageBoxImage.Information)
+        End If
+    End Sub
+
+    Private Async Sub CheckForUpdates()
+        ' Prevent duplicate checks
+        If _updateChecked Then Return
+        _updateChecked = True
+
+        Try
+            ' Get current version from executable
+            Dim currentVersion As Version = GetAppVersion()
+
+            ' Fetch version from GitHub
+            Dim client As New Net.Http.HttpClient()
+            client.DefaultRequestHeaders.Add("User-Agent", "PrayerWidget")
+
+            Dim json As String = Await client.GetStringAsync("https://raw.githubusercontent.com/eng-salem/Salaty1st/main/version.json")
+
+            ' Parse JSON once into a dictionary
+            Dim versionData = ParseJsonToDictionary(json)
+
+            ' Get values from dictionary
+            Dim latestVersionStr As String = ""
+            Dim downloadUrl As String = ""
+            Dim releaseNotes As String = ""
+            Dim changelog As String = ""
+            Dim screenshotUrl As String = ""
+
+            If versionData.ContainsKey("version") Then latestVersionStr = versionData("version")
+            If versionData.ContainsKey("download_url") Then downloadUrl = versionData("download_url")
+            If versionData.ContainsKey("release_notes") Then releaseNotes = versionData("release_notes")
+            If versionData.ContainsKey("changelog") Then changelog = versionData("changelog")
+            If versionData.ContainsKey("screenshot_url") Then screenshotUrl = versionData("screenshot_url")
+
+            Dim latestVersion As New Version(latestVersionStr)
+
+            Console.WriteLine($"Current version: {currentVersion.ToString()}")
+            Console.WriteLine($"Latest version: {latestVersion.ToString()}")
+
+            ' Compare versions
+            If latestVersion > currentVersion Then
+                ' Build changelog message
+                Dim changelogMessage As String = ""
+                If Not String.IsNullOrEmpty(changelog) Then
+                    ' Parse changelog array from JSON
+                    Dim changelogItems = ParseJsonArray(json, "changelog")
+                    If changelogItems.Count > 0 Then
+                        changelogMessage = vbCrLf & vbCrLf & "What's New:" & vbCrLf
+                        For Each item In changelogItems
+                            changelogMessage &= "• " & item & vbCrLf
+                        Next
+                    End If
+                End If
+
+                Dim result As MessageBoxResult = MessageBox.Show(
+                    $"A new version is available!{vbCrLf}{vbCrLf}" &
+                    $"Current: {currentVersion.ToString()}{vbCrLf}" &
+                    $"Latest: {latestVersion.ToString()}{vbCrLf}" &
+                    changelogMessage & vbCrLf &
+                    $"Download: setup.exe (Windows Installer){vbCrLf}" &
+                    $"After download, run setup.exe to update.{vbCrLf}{vbCrLf}" &
+                    $"Would you like to download now?",
+                    "Update Available",
+                    MessageBoxButton.YesNo,
+                    MessageBoxImage.Question)
+
+                If result = MessageBoxResult.Yes Then
+                    ' Open download URL only (no screenshot)
+                    If Not String.IsNullOrEmpty(downloadUrl) Then
+                        Process.Start(downloadUrl)
+                    Else
+                        Process.Start("https://github.com/eng-salem/Salaty1st/releases/latest")
+                    End If
+                End If
+            Else
+                Console.WriteLine("You have the latest version")
+            End If
+        Catch ex As Exception
+            Console.WriteLine("Update check failed: " & ex.Message)
+        End Try
+    End Sub
+
+    Private Function GetAppVersion() As Version
+        Try
+            Dim assemblyVersion As Version = System.Reflection.Assembly.GetExecutingAssembly().GetName().Version
+            Return New Version(assemblyVersion.Major, assemblyVersion.Minor, assemblyVersion.Build)
+        Catch
+            Return New Version(1, 0, 0)
+        End Try
+    End Function
+
+    ''' <summary>
+    ''' Parse JSON string into a Dictionary (simple parser for flat JSON objects)
+    ''' </summary>
+    Private Function ParseJsonToDictionary(json As String) As Dictionary(Of String, String)
+        Dim result As New Dictionary(Of String, String)()
+        Try
+            ' Remove whitespace and braces
+            json = json.Trim()
+            If json.StartsWith("{") Then json = json.Substring(1)
+            If json.EndsWith("}") Then json = json.Substring(0, json.Length - 1)
+
+            ' Simple state machine to parse key-value pairs
+            Dim i As Integer = 0
+            While i < json.Length
+                ' Skip whitespace and commas
+                While i < json.Length AndAlso (Char.IsWhiteSpace(json(i)) OrElse json(i) = ","c)
+                    i += 1
+                End While
+                If i >= json.Length Then Exit While
+
+                ' Find key (should be in quotes)
+                If json(i) = """"c Then
+                    i += 1
+                    Dim keyStart As Integer = i
+                    While i < json.Length AndAlso json(i) <> """"c
+                        i += 1
+                    End While
+                    Dim key As String = json.Substring(keyStart, i - keyStart)
+                    i += 1 ' Skip closing quote
+
+                    ' Skip colon and whitespace
+                    While i < json.Length AndAlso (Char.IsWhiteSpace(json(i)) OrElse json(i) = ":"c)
+                        i += 1
+                    End While
+
+                    ' Find value
+                    If i < json.Length Then
+                        If json(i) = """"c Then
+                            ' String value
+                            i += 1
+                            Dim valueStart As Integer = i
+                            While i < json.Length AndAlso json(i) <> """"c
+                                i += 1
+                            End While
+                            Dim value As String = json.Substring(valueStart, i - valueStart)
+                            result(key) = value
+                            i += 1 ' Skip closing quote
+                        ElseIf json(i) = "["c Then
+                            ' Array value - store as JSON string
+                            Dim arrayStart As Integer = i
+                            Dim bracketCount As Integer = 1
+                            i += 1
+                            While i < json.Length AndAlso bracketCount > 0
+                                If json(i) = "["c Then bracketCount += 1
+                                If json(i) = "]"c Then bracketCount -= 1
+                                i += 1
+                            End While
+                            result(key) = json.Substring(arrayStart, i - arrayStart)
+                        End If
+                    End If
+                Else
+                    i += 1
+                End If
+            End While
+        Catch ex As Exception
+            Console.WriteLine("ParseJsonToDictionary error: " & ex.Message)
+        End Try
+        Return result
+    End Function
+
+    ''' <summary>
+    ''' Parse JSON array from JSON string by key
+    ''' </summary>
+    Private Function ParseJsonArray(json As String, key As String) As List(Of String)
+        Dim result As New List(Of String)()
+        Try
+            ' Find the array in the JSON
+            Dim arrayKey As String = """" & key & """:"
+            Dim arrayStart As Integer = json.IndexOf(arrayKey)
+            If arrayStart < 0 Then Return result
+
+            arrayStart += arrayKey.Length
+
+            ' Find the opening bracket
+            While arrayStart < json.Length AndAlso Not Char.IsWhiteSpace(json(arrayStart)) AndAlso json(arrayStart) <> "["c
+                arrayStart += 1
+            End While
+
+            If arrayStart >= json.Length OrElse json(arrayStart) <> "["c Then Return result
+
+            ' Parse array items
+            Dim bracketCount As Integer = 1
+            Dim i As Integer = arrayStart + 1
+            Dim currentItem As String = ""
+            Dim inString As Boolean = False
+
+            While i < json.Length AndAlso bracketCount > 0
+                Dim c As Char = json(i)
+
+                If c = """"c Then
+                    inString = Not inString
+                    currentItem &= c
+                ElseIf inString Then
+                    currentItem &= c
+                ElseIf c = "["c Then
+                    bracketCount += 1
+                ElseIf c = "]"c Then
+                    bracketCount -= 1
+                ElseIf c = ","c AndAlso bracketCount = 1 Then
+                    ' End of item
+                    If Not String.IsNullOrEmpty(currentItem.Trim()) Then
+                        ' Remove quotes from string item
+                        Dim item = currentItem.Trim().Trim("""")
+                        result.Add(item)
+                    End If
+                    currentItem = ""
+                Else
+                    currentItem &= c
+                End If
+                i += 1
+            End While
+
+            ' Don't forget the last item
+            If Not String.IsNullOrEmpty(currentItem.Trim()) Then
+                Dim item = currentItem.Trim().Trim("""")
+                result.Add(item)
+            End If
+        Catch ex As Exception
+            Console.WriteLine("ParseJsonArray error: " & ex.Message)
+        End Try
+        Return result
+    End Function
+
+    Private Sub MainGrid_MouseLeftButtonDown(sender As Object, e As MouseButtonEventArgs)
+        ' Stop athan sound if playing when user clicks on widget
+        If _isAthanPlaying Then
+            StopAthan()
+        End If
+    End Sub
+
+    Private Function GetHijriDate() As String
+        Try
+            ' Use HijriCalendar with adjustment for local moon sighting
+            Dim hijriCalendar As New Globalization.HijriCalendar()
+            Dim hijriDate As DateTime = DateTime.Now
+
+            ' Get Hijri date components
+            Dim day As Integer = hijriCalendar.GetDayOfMonth(hijriDate)
+            Dim month As Integer = hijriCalendar.GetMonth(hijriDate)
+            Dim year As Integer = hijriCalendar.GetYear(hijriDate)
+
+            ' Apply adjustment from settings (-1, 0, or +1)
+            ' Egypt typically needs -1 adjustment for local moon sighting
+            day = day + _settings.HijriAdjustment
+
+            ' Handle month boundaries
+            If day < 1 Then
+                ' Go to previous month
+                month = month - 1
+                If month < 1 Then
+                    month = 12
+                    year = year - 1
+                End If
+                ' Get days in previous month
+                Dim daysInPrevMonth As Integer = hijriCalendar.GetDaysInMonth(year, month)
+                day = daysInPrevMonth + day ' day is negative
+            ElseIf day > 29 Then
+                ' Approximate: go to next month (Hijri months are 29-30 days)
+                month = month + 1
+                If month > 12 Then
+                    month = 1
+                    year = year + 1
+                End If
+                day = day - 29
+            End If
+
+            ' Month names in English
+            Dim monthNames As String() = {
+                "Muharram", "Safar", "Rabi' al-Awwal", "Rabi' al-Thani",
+                "Jumada al-Awwal", "Jumada al-Thani", "Rajab", "Sha'ban",
+                "Ramadan", "Shawwal", "Dhu al-Qi'dah", "Dhu al-Hijjah"
+            }
+
+            Return $"{day} {monthNames(month - 1)} {year}"
+        Catch ex As Exception
+            Return ""
+        End Try
+    End Function
+
+    Private Sub ApplyOpacitySettings()
+        ' Apply widget opacity (convert percentage to hex alpha)
+        Dim alpha As Byte = CByte(_settings.WidgetOpacity / 100 * 255)
+        GlassBorder.Background = New SolidColorBrush(WpfColor.FromArgb(alpha, 32, 32, 32))
+
+        Console.WriteLine($"Applied widget opacity: {_settings.WidgetOpacity}% (Alpha: {alpha})")
+    End Sub
+
+    Private Sub ApplySettings()
+        Me.Width = _settings.WindowWidth
+        Me.Height = _settings.WindowHeight
+        GlassBorder.CornerRadius = New CornerRadius(_settings.CornerRadius)
+        MainGrid.Margin = New Thickness(_settings.GridMargin)
+
+        ProgressArc.StrokeThickness = _settings.StrokeThickness
+        ProgressArc.Margin = New Thickness(_settings.GridMargin)
+
+        ProgressArc.StrokeDashArray = New DoubleCollection({0, 500})
+        ProgressArc.StrokeDashOffset = 0
+
+        'LblNext.FontSize = _settings.TitleFontSize
+        'LblPrayer.FontSize = _settings.PrayerFontSize
+        'LblCountdown.FontSize = _settings.CountdownFontSize
+    End Sub
+
+    ' Update LoadPrayerTimesAsync to store prayer times
+    Private Async Sub LoadPrayerTimesAsync()
+        Dim stackTrace As New System.Diagnostics.StackTrace()
+        WriteLog($"=== LoadPrayerTimesAsync START === (called from: {stackTrace.GetFrame(1).GetMethod().Name})")
+        WriteLog($"Current time: {DateTime.Now:HH:mm:ss}")
+        WriteLog($"Settings: City={_settings.City}, Country={_settings.Country}, SummerTime={_settings.IsSummerTime}")
+        
+        Try
+            Dim prayerTimes = Await _prayerApi.GetPrayerTimesAsync(_settings.City, _settings.Country, _settings.Method, _settings.IsSummerTime, _settings.AsrMethod)
+
+            ' Store for later use
+            _currentPrayerTimes = prayerTimes
+
+            _nextPrayerTime = prayerTimes.NextPrayerTime
+            _previousPrayerTime = prayerTimes.PreviousPrayerTime
+
+            WriteLog($"Loaded prayer times - Fajr={prayerTimes.Fajr:HH:mm:ss}, Dhuhr={prayerTimes.Dhuhr:HH:mm:ss}, Asr={prayerTimes.Asr:HH:mm:ss}, Maghrib={prayerTimes.Maghrib:HH:mm:ss}, Isha={prayerTimes.Isha:HH:mm:ss}")
+            WriteLog($"Next prayer: {prayerTimes.NextPrayer} at {prayerTimes.NextPrayerTime:HH:mm:ss}")
+
+            LblPrayer.Text = prayerTimes.NextPrayer
+            LblPreviousName.Text = prayerTimes.PreviousPrayer
+
+            ' Show Hijri date
+            LblHijriDate.Text = GetHijriDate()
+
+            ' Update tooltip
+            UpdateTooltipText()
+
+            UpdateCountdown()
+
+            ' Log all prayer times for debugging
+            Console.WriteLine($"[LoadPrayerTimesAsync] Loaded prayer times:")
+            Console.WriteLine($"  Fajr: {prayerTimes.Fajr}")
+            Console.WriteLine($"  Dhuhr: {prayerTimes.Dhuhr}")
+            Console.WriteLine($"  Asr: {prayerTimes.Asr}")
+            Console.WriteLine($"  Maghrib: {prayerTimes.Maghrib}")
+            Console.WriteLine($"  Isha: {prayerTimes.Isha}")
+            Console.WriteLine($"  Next: {prayerTimes.NextPrayer} at {prayerTimes.NextPrayerTime:HH:mm:ss}")
+            Console.WriteLine($"  Previous: {prayerTimes.PreviousPrayer} at {prayerTimes.PreviousPrayerTime:HH:mm:ss}")
+            Console.WriteLine($"  Current time: {DateTime.Now:HH:mm:ss}")
+            Console.WriteLine($"  Time to next prayer: {(prayerTimes.NextPrayerTime - DateTime.Now).TotalMinutes:F1} minutes")
+            Console.WriteLine($"[LoadPrayerTimesAsync] Prayer times loaded - timer will trigger athan at prayer time")
+        Catch ex As Exception
+            Console.WriteLine("Error loading prayer times: " & ex.Message)
+            _nextPrayerTime = DateTime.Now.AddHours(2.5)
+            _previousPrayerTime = DateTime.Now.AddHours(-2.5)
+            LblPrayer.Text = "ASR"
+            LblPreviousName.Text = "DUHR"
+            LblHijriDate.Text = GetHijriDate()
+            UpdateCountdown()
+        End Try
+    End Sub
+
+    Private Sub Timer_Tick(sender As Object, e As EventArgs)
+        UpdateCountdown()
+        UpdateElapsedTime()
+        UpdateHijriDate()
+        CheckReminders()
+
+        ' Check if it's prayer time
+        Dim now As DateTime = DateTime.Now
+
+        ' Use the next prayer time
+        Dim targetTime As DateTime = _nextPrayerTime
+        Dim timeDiff As Double = (now - targetTime).TotalSeconds
+
+        ' Debug logging every second when near prayer time
+        If timeDiff >= -30 AndAlso timeDiff <= 10 Then
+            WriteLog($"[Timer_Tick] Debug: target={targetTime:HH:mm:ss}, now={now:HH:mm:ss}, timeDiff={timeDiff:F2}s, flag={_hasPlayedAthanForCurrentPrayer}")
+        End If
+
+        ' Trigger athan when we're 0 to 5 seconds AFTER the target prayer time
+        If timeDiff >= 0 AndAlso timeDiff <= 5 AndAlso Not _hasPlayedAthanForCurrentPrayer Then
+            Dim logMsg1 = $"[Timer_Tick] *** PRAYER TIME REACHED! *** {targetTime:HH:mm:ss}, now={now:HH:mm:ss}, diff={timeDiff:F1}s"
+            WriteLog(logMsg1)
+            Console.WriteLine(logMsg1)
+
+            WriteLog("[Timer_Tick] Before setting flag")
+            _hasPlayedAthanForCurrentPrayer = True
+            WriteLog("[Timer_Tick] After setting flag, calling PlayAthan")
+            Console.WriteLine("[Timer_Tick] Calling PlayAthan()...")
+
+            PlayAthan()
+
+            ' Reload prayer times for next prayer after athan is triggered
+            WriteLog("[Timer_Tick] Calling LoadPrayerTimesAsync for next prayer...")
+            LoadPrayerTimesAsync()
+
+            WriteLog("[Timer_Tick] PlayAthan() returned")
+            Console.WriteLine("[Timer_Tick] PlayAthan() returned")
+        End If
+
+        ' Reset the flag when we're far from the target time (safety reset)
+        If timeDiff > 60 OrElse timeDiff < -60 Then
+            _hasPlayedAthanForCurrentPrayer = False
+        End If
+    End Sub
+
+    Private Sub UpdateHijriDate()
+        ' Update Hijri date in both tabs
+        Dim hijriDate As String = GetHijriDate()
+        LblHijriDate.Text = hijriDate
+        LblHijriDate2.Text = hijriDate
+    End Sub
+
+    Private Sub UpdateCountdown()
+        ' Calculate remaining time to next prayer
+        Dim remaining As TimeSpan = _nextPrayerTime - DateTime.Now
+
+        If remaining.TotalSeconds <= 0 Then
+            ' Countdown reached zero - prayer time has arrived
+            LblCountdown.Text = "00:00:00"
+            UpdateProgressRing(100, 0)
+
+            ' Update time since previous prayer
+            UpdateTimeSincePrevious()
+
+            ' DON'T reload prayer times here - let Timer_Tick handle the athan trigger first
+            ' Reload will happen automatically after athan is triggered (in LoadPrayerTimesAsync)
+            ' This prevents the next prayer time from changing before athan can be triggered
+            Return
+        End If
+
+        ' Update countdown display - use TotalSeconds to handle negative values correctly
+        Dim totalSeconds As Integer = CInt(remaining.TotalSeconds)
+        Dim hours As Integer = totalSeconds \ 3600
+        Dim minutes As Integer = (totalSeconds Mod 3600) \ 60
+        Dim seconds As Integer = totalSeconds Mod 60
+
+        LblCountdown.Text = String.Format("{0:D2}:{1:D2}:{2:D2}", hours, minutes, seconds)
+
+        ' Update time since previous prayer
+        UpdateTimeSincePrevious()
+
+        ' Calculate percentage based on time between previous and next prayer
+        Dim totalDuration As Double = (_nextPrayerTime - _previousPrayerTime).TotalSeconds
+        Dim elapsedSeconds As Double = (DateTime.Now - _previousPrayerTime).TotalSeconds
+        Dim percent As Double = (elapsedSeconds / totalDuration) * 100
+        percent = Math.Min(100, Math.Max(0, percent))
+
+        UpdateProgressRing(percent, remaining.TotalSeconds)
+    End Sub
+
+    Private Sub UpdateElapsedTime()
+        Dim elapsed As TimeSpan = DateTime.Now - _previousPrayerTime
+
+        ' Format elapsed time as +HH:MM:SS (use Hours not TotalHours to avoid day overflow)
+        LblTimeSince.Text = String.Format("+{0:D2}:{1:D2}:{2:D2}",
+            elapsed.Hours, elapsed.Minutes, elapsed.Seconds)
+    End Sub
+
+    Private Sub UpdateTimeSincePrevious()
+        ' Kept for backward compatibility but not used in Timer_Tick
+        Dim elapsed As TimeSpan = DateTime.Now - _previousPrayerTime
+        LblTimeSince.Text = String.Format("{0:D2}:{1:D2}:{2:D2}",
+            elapsed.Hours, elapsed.Minutes, elapsed.Seconds)
+    End Sub
+
+    Private Sub UpdateProgressRingVisibility()
+        If _settings.ShowProgressRing Then
+            ProgressRingContainer.Visibility = Visibility.Visible
+        Else
+            ProgressRingContainer.Visibility = Visibility.Collapsed
+        End If
+    End Sub
+
+    Private Sub UpdateProgressRing(percentage As Double, remainingSeconds As Double)
+        Dim thickness As Double = ProgressArc.StrokeThickness
+        If thickness <= 0 Then thickness = 1
+
+        Dim ellipseWidth As Double = ProgressArc.ActualWidth
+        If ellipseWidth <= 0 Then ellipseWidth = Me.Width - 16
+
+        Dim radius As Double = (ellipseWidth - thickness) / 2
+        If radius <= 0 Then radius = 1
+
+        Dim circumference As Double = 2 * Math.PI * radius
+        Dim rawDashLength As Double = circumference * (percentage / 100.0)
+        Dim rawGapLength As Double = circumference - rawDashLength
+        Dim dashLength As Double = rawDashLength / thickness
+        Dim gapLength As Double = rawGapLength / thickness
+
+        ProgressArc.StrokeDashArray = New DoubleCollection({dashLength, gapLength})
+        ProgressArc.StrokeDashOffset = 0
+
+        ' Color based on percentage (changes as time progresses)
+        If percentage >= 90 Then
+            ProgressArc.Stroke = New SolidColorBrush(WpfColor.FromRgb(244, 67, 54)) ' Red (last 10%)
+        ElseIf percentage >= 75 Then
+            ProgressArc.Stroke = New SolidColorBrush(WpfColor.FromRgb(255, 152, 0)) ' Orange (10-25%)
+        ElseIf percentage >= 50 Then
+            ProgressArc.Stroke = New SolidColorBrush(WpfColor.FromRgb(255, 193, 7)) ' Yellow (25-50%)
+        Else
+            ProgressArc.Stroke = New SolidColorBrush(WpfColor.FromRgb(79, 172, 254)) ' Blue (50%+)
+        End If
+    End Sub
+
+    Private Sub PlayAthan()
+        ' Get the current prayer name from the label
+        Dim prayerName As String = LblPrayer.Text.ToUpper()
+        WriteLog($"[PlayAthan] LblPrayer.Text = '{LblPrayer.Text}', Using: {prayerName}")
+        Console.WriteLine($"[PlayAthan] Called with prayer name: {prayerName} (from LblPrayer.Text = '{LblPrayer.Text}')")
+        PlayAthanForPrayer(prayerName)
+    End Sub
+
+    Private Sub PlayAthanForPrayer(prayerName As String)
+        WriteLog($"[PlayAthanForPrayer] Starting for: {prayerName}")
+
+        If _settings.AthanSound = "none" Then
+            WriteLog("[PlayAthanForPrayer] Athan sound is set to 'none', skipping")
+            Console.WriteLine("[PlayAthanForPrayer] Athan sound is set to 'none', skipping")
+            Return
+        End If
+
+        Try
+            WriteLog($"[PlayAthanForPrayer] Called for: {prayerName}")
+            Console.WriteLine($"[PlayAthanForPrayer] Called for: {prayerName}")
+
+            ' Determine athan sound based on prayer name
+            Dim athanSound As String = _settings.AthanSound
+
+            ' Map "default" to first sorted MP3 file in the folder (ASC)
+            If athanSound = "default" Then
+                athanSound = GetFirstAthanSound()
+            End If
+
+            ' Use per-prayer sound if configured
+            Select Case prayerName.ToUpper()
+                Case "FAJR"
+                    athanSound = If(String.IsNullOrEmpty(_settings.FajrAthanSound), athanSound, _settings.FajrAthanSound)
+                Case "DHUHR"
+                    athanSound = If(String.IsNullOrEmpty(_settings.DhuhrAthanSound), athanSound, _settings.DhuhrAthanSound)
+                Case "ASR"
+                    athanSound = If(String.IsNullOrEmpty(_settings.AsrAthanSound), athanSound, _settings.AsrAthanSound)
+                Case "MAGHRIB"
+                    athanSound = If(String.IsNullOrEmpty(_settings.MaghribAthanSound), athanSound, _settings.MaghribAthanSound)
+                Case "ISHA"
+                    athanSound = If(String.IsNullOrEmpty(_settings.IshaAthanSound), athanSound, _settings.IshaAthanSound)
+            End Select
+
+            ' Map per-prayer "default" to first sorted MP3 file
+            If athanSound = "default" Then
+                athanSound = GetFirstAthanSound()
+            End If
+
+            If athanSound = "none" Then
+                Console.WriteLine($"[PlayAthanForPrayer] {prayerName} athan sound is set to 'none', skipping")
+                Return
+            End If
+
+            ' Load athan sound file from Resources/MP3 folder
+            Dim soundPath = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Resources", "MP3", athanSound & ".mp3")
+
+            Console.WriteLine($"[PlayAthanForPrayer] Prayer: {prayerName}, Sound: {athanSound}, Path: {soundPath}")
+
+            If Not System.IO.File.Exists(soundPath) Then
+                Console.WriteLine($"[PlayAthanForPrayer] ERROR: Sound file not found: {soundPath}")
+                Console.WriteLine($"[PlayAthanForPrayer] Base directory: {AppDomain.CurrentDomain.BaseDirectory}")
+
+                ' List available MP3 files for debugging
+                Try
+                    Dim mp3Folder = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Resources", "MP3")
+                    If System.IO.Directory.Exists(mp3Folder) Then
+                        Dim files = System.IO.Directory.GetFiles(mp3Folder, "*.mp3")
+                        Console.WriteLine($"[PlayAthanForPrayer] Available MP3 files in {mp3Folder}:")
+                        For Each f In files
+                            Console.WriteLine($"  - {System.IO.Path.GetFileName(f)}")
+                        Next
+                    Else
+                        Console.WriteLine($"[PlayAthanForPrayer] MP3 folder does not exist: {mp3Folder}")
+                    End If
+                Catch
+                End Try
+
+                Return
+            End If
+
+            ' Stop any currently playing athan or duaa
+            StopAthan()
+            StopDuaa()
+
+            ' Set flag indicating athan is playing
+            _isAthanPlaying = True
+
+            ' Get volume setting (default 100%)
+            Dim volumeSetting As String = _settingsManager.GetSetting("AthanVolume", "100")
+            Dim volume As Double = CDbl(volumeSetting)
+
+            Console.WriteLine($"[PlayAthanForPrayer] Opening media file: {soundPath}, Volume: {volume}%")
+
+            ' Show toast notification FIRST with athan sound
+            ' The toast will handle its own sound playback
+            ShowToastNotification($"🕌 {prayerName} Time",
+                                 $"The time for {prayerName} prayer has started.",
+                                 soundPath)
+
+            ' Also play sound from main window for reliability
+            ' Use MediaPlayer for MP3 playback on UI thread
+            Me.Dispatcher.Invoke(Sub()
+                _mediaPlayer.Open(New Uri(soundPath))
+                _mediaPlayer.Volume = volume ' 0-100 scale from settings
+
+                ' Add error handler for media failures
+                AddHandler _mediaPlayer.MediaFailed, Sub(s, e)
+                    Console.WriteLine($"[PlayAthanForPrayer] MediaFailed: {e.ErrorException?.Message}")
+                    _isAthanPlaying = False
+                End Sub
+
+                _mediaPlayer.Play()
+                Console.WriteLine($"[PlayAthanForPrayer] Play() called, MediaPlayer state: {_mediaPlayer.Source?.AbsoluteUri}")
+
+                ' Reset flag when playback ends and play duaa if enabled
+                AddHandler _mediaPlayer.MediaEnded, Sub(s, e)
+                    Console.WriteLine($"[PlayAthanForPrayer] MediaEnded - playback completed")
+                    _isAthanPlaying = False
+                    ' Play duaa after athan if enabled
+                    If _settings.EnableDuaaAfterAthan Then
+                        PlayDuaaAfterAthan()
+                    End If
+                End Sub
+            End Sub)
+
+        Catch ex As Exception
+            Console.WriteLine($"[PlayAthanForPrayer] ERROR: {ex.GetType().Name}: {ex.Message}")
+            Console.WriteLine($"[PlayAthanForPrayer] StackTrace: {ex.StackTrace}")
+            _isAthanPlaying = False
+        End Try
+    End Sub
+
+    Private Sub StopAthan()
+        If _mediaPlayer IsNot Nothing Then
+            _mediaPlayer.Stop()
+            _isAthanPlaying = False
+        End If
+    End Sub
+
+    Private _duaaPlayer As MediaPlayer
+    Private _isDuaaPlaying As Boolean = False
+
+    Private Sub PlayDuaaAfterAthan()
+        Try
+            ' Get duaa sound from settings
+            Dim duaaSound As String = _settings.DuaaSound
+            If String.IsNullOrEmpty(duaaSound) OrElse duaaSound = "default" Then
+                duaaSound = GetFirstDuaaSound()
+            End If
+
+            ' Load duaa sound file from Resources/MP3 folder
+            Dim duaaPath = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Resources", "MP3", duaaSound & ".mp3")
+
+            If System.IO.File.Exists(duaaPath) Then
+                ' Create new media player for duaa
+                _duaaPlayer = New MediaPlayer()
+                _duaaPlayer.Open(New Uri(duaaPath))
+
+                ' Get volume setting
+                Dim volumeSetting As String = _settingsManager.GetSetting("AthanVolume", "100")
+                Dim volume As Double = CDbl(volumeSetting)
+
+                _duaaPlayer.Volume = volume
+                
+                _duaaPlayer.Play()
+                _isDuaaPlaying = True
+
+                Console.WriteLine($"Playing duaa after athan: {duaaPath}")
+                
+                ' Auto-close toast after duaa completes
+                AddHandler _duaaPlayer.MediaEnded, Sub(s, e)
+                    Console.WriteLine("[PlayDuaaAfterAthan] MediaEnded - closing toast")
+                    _isDuaaPlaying = False
+                    ' Close any open toast notifications
+                    For Each window In Application.Current.Windows.OfType(Of ToastNotification)()
+                        window.Close()
+                    Next
+                End Sub
+            Else
+                Console.WriteLine($"Duaa file not found: {duaaPath}")
+            End If
+        Catch ex As Exception
+            Console.WriteLine("Error playing duaa: " & ex.Message)
+            _isDuaaPlaying = False
+        End Try
+    End Sub
+
+    ''' <summary>
+    ''' Get the first sorted MP3 duaa sound file from the Resources/MP3 folder
+    ''' Returns files in DESCENDING order (last file first)
+    ''' </summary>
+    Private Function GetFirstDuaaSound() As String
+        Try
+            Dim mp3Folder = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Resources", "MP3")
+            If System.IO.Directory.Exists(mp3Folder) Then
+                Dim files = System.IO.Directory.GetFiles(mp3Folder, "*_duaa.mp3")
+                If files.Length > 0 Then
+                    ' Sort in DESCENDING order and return first file name without extension
+                    Array.Sort(files)
+                    Array.Reverse(files) ' Reverse to get descending order
+                    Dim fileName = System.IO.Path.GetFileNameWithoutExtension(files(0))
+                    Console.WriteLine($"[GetFirstDuaaSound] Using first sorted duaa file (DESC): {fileName}")
+                    Return fileName
+                End If
+            End If
+        Catch ex As Exception
+            Console.WriteLine($"[GetFirstDuaaSound] Error: {ex.Message}")
+        End Try
+        ' Fallback
+        Return "sha3rawy_duaa"
+    End Function
+
+    ''' <summary>
+    ''' Get the first sorted MP3 athan sound file from the Resources/MP3 folder
+    ''' Returns files in ASCENDING order (first file first)
+    ''' </summary>
+    Private Function GetFirstAthanSound() As String
+        Try
+            Dim mp3Folder = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Resources", "MP3")
+            If System.IO.Directory.Exists(mp3Folder) Then
+                Dim files = System.IO.Directory.GetFiles(mp3Folder, "*_athan.mp3")
+                If files.Length > 0 Then
+                    ' Sort in ASCENDING order and return first file name without extension
+                    Array.Sort(files)
+                    Dim fileName = System.IO.Path.GetFileNameWithoutExtension(files(0))
+                    Console.WriteLine($"[GetFirstAthanSound] Using first sorted athan file (ASC): {fileName}")
+                    Return fileName
+                End If
+            End If
+        Catch ex As Exception
+            Console.WriteLine($"[GetFirstAthanSound] Error: {ex.Message}")
+        End Try
+        ' Fallback
+        Return "al-afasy_athan"
+    End Function
+
+    Private Sub StopDuaa()
+        If _duaaPlayer IsNot Nothing Then
+            _duaaPlayer.Stop()
+            _isDuaaPlaying = False
+        End If
+    End Sub
+
+    Private Function LoadReminderSettings() As ReminderSettings
+        Dim settings As New ReminderSettings()
+
+        settings.FajrReminder.EnabledBefore = CBool(_settingsManager.GetDoubleSetting("FajrReminder_EnabledBefore", 0))
+        settings.FajrReminder.MinutesBefore = CInt(_settingsManager.GetDoubleSetting("FajrReminder_MinutesBefore", 10))
+        settings.FajrReminder.EnabledAfter = CBool(_settingsManager.GetDoubleSetting("FajrReminder_EnabledAfter", 0))
+        settings.FajrReminder.MinutesAfter = CInt(_settingsManager.GetDoubleSetting("FajrReminder_MinutesAfter", 15))
+
+        settings.DhuhrReminder.EnabledBefore = CBool(_settingsManager.GetDoubleSetting("DhuhrReminder_EnabledBefore", 0))
+        settings.DhuhrReminder.MinutesBefore = CInt(_settingsManager.GetDoubleSetting("DhuhrReminder_MinutesBefore", 10))
+        settings.DhuhrReminder.EnabledAfter = CBool(_settingsManager.GetDoubleSetting("DhuhrReminder_EnabledAfter", 0))
+        settings.DhuhrReminder.MinutesAfter = CInt(_settingsManager.GetDoubleSetting("DhuhrReminder_MinutesAfter", 15))
+
+        settings.AsrReminder.EnabledBefore = CBool(_settingsManager.GetDoubleSetting("AsrReminder_EnabledBefore", 0))
+        settings.AsrReminder.MinutesBefore = CInt(_settingsManager.GetDoubleSetting("AsrReminder_MinutesBefore", 10))
+        settings.AsrReminder.EnabledAfter = CBool(_settingsManager.GetDoubleSetting("AsrReminder_EnabledAfter", 0))
+        settings.AsrReminder.MinutesAfter = CInt(_settingsManager.GetDoubleSetting("AsrReminder_MinutesAfter", 15))
+
+        settings.MaghribReminder.EnabledBefore = CBool(_settingsManager.GetDoubleSetting("MaghribReminder_EnabledBefore", 0))
+        settings.MaghribReminder.MinutesBefore = CInt(_settingsManager.GetDoubleSetting("MaghribReminder_MinutesBefore", 10))
+        settings.MaghribReminder.EnabledAfter = CBool(_settingsManager.GetDoubleSetting("MaghribReminder_EnabledAfter", 0))
+        settings.MaghribReminder.MinutesAfter = CInt(_settingsManager.GetDoubleSetting("MaghribReminder_MinutesAfter", 15))
+
+        settings.IshaReminder.EnabledBefore = CBool(_settingsManager.GetDoubleSetting("IshaReminder_EnabledBefore", 0))
+        settings.IshaReminder.MinutesBefore = CInt(_settingsManager.GetDoubleSetting("IshaReminder_MinutesBefore", 10))
+        settings.IshaReminder.EnabledAfter = CBool(_settingsManager.GetDoubleSetting("IshaReminder_EnabledAfter", 0))
+        settings.IshaReminder.MinutesAfter = CInt(_settingsManager.GetDoubleSetting("IshaReminder_MinutesAfter", 15))
+
+        Return settings
+    End Function
+
+    Private Sub CheckReminders()
+        Dim now As DateTime = DateTime.Now
+
+        ' Only check once per minute
+        If (now - _lastReminderCheck).TotalMinutes < 1 Then
+            Return
+        End If
+        _lastReminderCheck = now
+
+        ' Check each prayer reminder (before and after)
+        CheckBeforeReminder("Fajr", _currentPrayerTimes.Fajr, _reminderSettings.FajrReminder)
+        CheckAfterReminder("Fajr", _currentPrayerTimes.Fajr, _reminderSettings.FajrReminder)
+
+        CheckBeforeReminder("Dhuhr", _currentPrayerTimes.Dhuhr, _reminderSettings.DhuhrReminder)
+        CheckAfterReminder("Dhuhr", _currentPrayerTimes.Dhuhr, _reminderSettings.DhuhrReminder)
+
+        CheckBeforeReminder("Asr", _currentPrayerTimes.Asr, _reminderSettings.AsrReminder)
+        CheckAfterReminder("Asr", _currentPrayerTimes.Asr, _reminderSettings.AsrReminder)
+
+        CheckBeforeReminder("Maghrib", _currentPrayerTimes.Maghrib, _reminderSettings.MaghribReminder)
+        CheckAfterReminder("Maghrib", _currentPrayerTimes.Maghrib, _reminderSettings.MaghribReminder)
+
+        CheckBeforeReminder("Isha", _currentPrayerTimes.Isha, _reminderSettings.IshaReminder)
+        CheckAfterReminder("Isha", _currentPrayerTimes.Isha, _reminderSettings.IshaReminder)
+    End Sub
+
+    Private Sub CheckBeforeReminder(prayerName As String, prayerTime As DateTime, reminder As PrayerReminder)
+        If Not reminder.EnabledBefore Then Return
+
+        Dim reminderKey As String = $"{prayerName}_Before_{prayerTime.Date}"
+        If _reminderShown.Contains(reminderKey) Then Return
+
+        Dim timeUntilPrayer As TimeSpan = prayerTime - DateTime.Now
+        Dim minutesUntilPrayer As Integer = CInt(timeUntilPrayer.TotalMinutes)
+
+        If minutesUntilPrayer = reminder.MinutesBefore Then
+            ShowBeforeReminderNotification(prayerName, reminder.MinutesBefore)
+            _reminderShown.Add(reminderKey)
+        End If
+    End Sub
+
+    Private Sub CheckAfterReminder(prayerName As String, prayerTime As DateTime, reminder As PrayerReminder)
+        If Not reminder.EnabledAfter Then Return
+
+        Dim reminderKey As String = $"{prayerName}_After_{prayerTime.Date}"
+        If _reminderShown.Contains(reminderKey) Then Return
+
+        Dim timeSincePrayer As TimeSpan = DateTime.Now - prayerTime
+        Dim minutesSincePrayer As Integer = CInt(timeSincePrayer.TotalMinutes)
+
+        If minutesSincePrayer = reminder.MinutesAfter Then
+            ShowAfterReminderNotification(prayerName, reminder.MinutesAfter)
+            _reminderShown.Add(reminderKey)
+        End If
+    End Sub
+
+    Private Sub ShowBeforeReminderNotification(prayerName As String, minutesBefore As Integer)
+        ' Play notification sound (Reminder0.mp3)
+        PlayNotificationSound()
+
+        ' Show toast notification (no audio - sound already played)
+        ShowToastNotification($"⏰ {prayerName} in {minutesBefore} min",
+                             $"{prayerName} prayer will begin soon. Prepare for prayer.",
+                             Nothing)
+    End Sub
+
+    Private Sub ShowAfterReminderNotification(prayerName As String, minutesAfter As Integer)
+        ' Play notification sound (Reminder0.mp3)
+        PlayNotificationSound()
+
+        ' Show toast notification (no audio - sound already played)
+        ShowToastNotification($"✅ {prayerName} Time",
+                             $"{prayerName} prayer began {minutesAfter} min ago. Don't miss it!",
+                             Nothing)
+    End Sub
+
+    ''' <summary>
+    ''' Get the full path to the current athan sound file
+    ''' </summary>
+    Private Function GetAthanSoundPath() As String
+        Try
+            Dim athanSound As String = _settings.AthanSound
+            If athanSound = "none" OrElse String.IsNullOrEmpty(athanSound) Then
+                Return Nothing
+            End If
+
+            Dim soundPath = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Resources", "MP3", athanSound & ".mp3")
+            If System.IO.File.Exists(soundPath) Then
+                Return soundPath
+            End If
+        Catch ex As Exception
+            Console.WriteLine("Error getting athan path: " & ex.Message)
+        End Try
+        Return Nothing
+    End Function
+
+    Private Sub PlayNotificationSound()
+        Try
+            ' Play notification sound from Resources/MP3 folder
+            Dim soundPath = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Resources", "MP3", "Reminder0.mp3")
+
+            If System.IO.File.Exists(soundPath) Then
+                ' Use MediaPlayer for MP3 playback (async, non-blocking)
+                Dim notificationPlayer As New MediaPlayer()
+                notificationPlayer.Open(New Uri(soundPath))
+                notificationPlayer.Volume = 100 ' Full volume for notifications
+
+                ' Add error handler
+                AddHandler notificationPlayer.MediaFailed, Sub(s, e)
+                                                               Console.WriteLine("Notification sound failed: " & e.ErrorException.Message)
+                                                               ' Fallback to Windows default sound
+                                                               System.Media.SystemSounds.Asterisk.Play()
+                                                           End Sub
+
+                notificationPlayer.Play()
+
+                Console.WriteLine("Playing notification sound: " & soundPath)
+            Else
+                Console.WriteLine("Notification sound not found: " & soundPath)
+                ' Fallback to Windows default sound
+                System.Media.SystemSounds.Asterisk.Play()
+            End If
+        Catch ex As Exception
+            Console.WriteLine("Error playing notification sound: " & ex.Message)
+            System.Media.SystemSounds.Asterisk.Play()
+        End Try
+    End Sub
+
+    Private Sub ShowToastNotification(title As String, message As String, Optional soundPath As String = Nothing)
+        Try
+            ' Close any existing toast notifications first
+            For Each window In Application.Current.Windows.OfType(Of ToastNotification)()
+                window.Close()
+            Next
+
+            Dim toast As New ToastNotification(title, message, _settings.NotificationOpacity, _settingsManager, soundPath)
+            toast.Owner = Me
+
+            ' Position near system tray (bottom-right corner of screen)
+            Dim screenWidth As Double = SystemParameters.WorkArea.Width + SystemParameters.WorkArea.Left
+            Dim screenHeight As Double = SystemParameters.WorkArea.Height + SystemParameters.WorkArea.Top
+            Dim taskbarHeight As Double = SystemParameters.PrimaryScreenHeight - SystemParameters.WorkArea.Height
+
+            ' Position at bottom-right, above taskbar
+            toast.Left = screenWidth - toast.Width - 10
+            toast.Top = screenHeight - toast.Height - taskbarHeight - 10
+
+            Console.WriteLine($"[ShowToastNotification] Position: X={toast.Left}, Y={toast.Top}, ScreenSize={screenWidth}x{screenHeight}")
+            Console.WriteLine($"[ShowToastNotification] Title='{title}', Message='{message}', SoundPath='{If(soundPath, "None")}'")
+
+            toast.Show()
+            Console.WriteLine("[ShowToastNotification] Toast shown successfully")
+        Catch ex As Exception
+            Console.WriteLine($"[ShowToastNotification] ERROR: {ex.Message}")
+        End Try
+    End Sub
+
+    Private Sub Window_MouseLeftButtonDown(sender As Object, e As MouseButtonEventArgs)
+        If e.ChangedButton = MouseButton.Left Then Me.DragMove()
+    End Sub
+
+    Private Sub Window_MouseRightButtonUp(sender As Object, e As MouseButtonEventArgs)
+    End Sub
+
+    Private Sub Menu_Settings_Click(sender As Object, e As RoutedEventArgs)
+        ShowSettingsWindow()
+    End Sub
+
+    Private Sub Menu_ShowAllPrayers_Click(sender As Object, e As RoutedEventArgs)
+        ShowAllPrayersWindow()
+    End Sub
+
+    Private Sub Menu_Facebook_Click(sender As Object, e As RoutedEventArgs)
+        OpenFacebookPage()
+    End Sub
+
+    Private Sub Menu_Close_Click(sender As Object, e As RoutedEventArgs)
+        Application.Current.Shutdown()
+    End Sub
+
+    Private Sub Menu_ToggleWidget_Click(sender As Object, e As RoutedEventArgs)
+        ToggleWidgetVisibility()
+    End Sub
+
+    Private Sub NotifyMenu_ToggleWidget_Click(sender As Object, e As RoutedEventArgs)
+        ToggleWidgetVisibility()
+    End Sub
+
+    Private Sub ToggleWidgetVisibility()
+        If Me.Visibility = Visibility.Visible Then
+            Me.Hide()
+            _widgetVisible = False
+            _settingsManager.SaveSetting("ShowWidget", "0")
+            UpdateToggleMenuText(LocalizationService.GetString("show_widget_menu", "Show Widget"))
+            ShowHideNotification()
+        Else
+            Me.Show()
+            Me.Topmost = True
+            Me.Activate()
+            _widgetVisible = True
+            _settingsManager.SaveSetting("ShowWidget", "1")
+            UpdateToggleMenuText(LocalizationService.GetString("hide_widget", "Hide Widget"))
+        End If
+    End Sub
+
+    Private Sub ShowHideNotification()
+        ' Show toast notification when widget is hidden
+        ShowToastNotification("🕌 Prayer Widget Hidden", "You can show the widget again from the system tray icon.")
+    End Sub
+
+    Public Sub UpdateToggleMenuText(header As String)
+        ' Update widget context menu
+        If MenuHideWidget IsNot Nothing Then
+            MenuHideWidget.Header = header
+        End If
+
+        ' Update tray icon context menu
+        Dim notifyIcon As TaskbarIcon = TryCast(FindResource("NotifyIcon"), TaskbarIcon)
+        If notifyIcon IsNot Nothing Then
+            Dim menuItem As MenuItem = TryCast(notifyIcon.ContextMenu.FindName("NotifyMenu_ToggleWidget"), MenuItem)
+            If menuItem IsNot Nothing Then
+                menuItem.Header = header
+            End If
+        End If
+    End Sub
+
+    ' NotifyIcon event handlers
+    Private Sub NotifyMenu_Settings_Click(sender As Object, e As RoutedEventArgs)
+        ShowSettingsWindow()
+    End Sub
+
+    Private Sub NotifyMenu_AllPrayers_Click(sender As Object, e As RoutedEventArgs)
+        ShowAllPrayersWindow()
+    End Sub
+
+    Private Sub NotifyMenu_Facebook_Click(sender As Object, e As RoutedEventArgs)
+        OpenFacebookPage()
+    End Sub
+
+    Private Sub NotifyMenu_Close_Click(sender As Object, e As RoutedEventArgs)
+        Application.Current.Shutdown()
+    End Sub
+
+    Private Sub UpdateTooltipText()
+        Dim notifyIcon As TaskbarIcon = TryCast(FindResource("NotifyIcon"), TaskbarIcon)
+        If notifyIcon Is Nothing Then Return
+
+        If _currentPrayerTimes Is Nothing Then
+            notifyIcon.ToolTipText = "Loading..."
+            Return
+        End If
+
+        Dim sb As New System.Text.StringBuilder()
+        sb.AppendLine($"{_settings.City}, {_settings.Country}")
+        sb.AppendLine($"Fajr: {_currentPrayerTimes.Fajr:hh:mm tt}")
+        sb.AppendLine($"Dhuhr: {_currentPrayerTimes.Dhuhr:hh:mm tt}")
+        sb.AppendLine($"Asr: {_currentPrayerTimes.Asr:hh:mm tt}")
+        sb.AppendLine($"Maghrib: {_currentPrayerTimes.Maghrib:hh:mm tt}")
+        sb.AppendLine($"Isha: {_currentPrayerTimes.Isha:hh:mm tt}")
+        sb.AppendLine()
+        sb.AppendLine($"Next: {_currentPrayerTimes.NextPrayer} in {FormatCountdown(_nextPrayerTime)}")
+
+        ' Windows tooltip has 127 char limit - truncate if needed
+        Dim tooltipText As String = sb.ToString()
+        If tooltipText.Length > 126 Then
+            tooltipText = tooltipText.Substring(0, 126)
+        End If
+
+        notifyIcon.ToolTipText = tooltipText
+    End Sub
+
+    Private Function FormatCountdown(target As DateTime) As String
+        Dim remaining As TimeSpan = target - DateTime.Now
+        If remaining.TotalSeconds <= 0 Then
+            Return "Now!"
+        End If
+        ' Return shorter format (HH:MM) for tooltip
+        Return String.Format("{0:D2}:{1:D2}", remaining.Hours, remaining.Minutes)
+    End Function
+
+    Private Sub Window_Loaded(sender As Object, e As RoutedEventArgs) Handles Me.Loaded
+        ' Set notify icon using application icon
+        Dim notifyIcon As TaskbarIcon = TryCast(FindResource("NotifyIcon"), TaskbarIcon)
+        If notifyIcon IsNot Nothing Then
+            Dim iconPath = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Icons", "salaty.first.ico")
+            If System.IO.File.Exists(iconPath) Then
+                notifyIcon.Icon = New System.Drawing.Icon(iconPath)
+            Else
+                notifyIcon.Icon = SystemIcons.Application
+            End If
+        End If
+
+        _settings = _settingsManager.LoadSettings()
+        _reminderSettings = LoadReminderSettings()
+
+        ' Check if first run
+        Dim isFirstRun As Boolean = CheckIsFirstRun()
+
+        ' Check for updates
+        CheckForUpdates()
+
+        Console.WriteLine("=== LOADED SETTINGS ===")
+        Console.WriteLine($"City: {_settings.City}")
+        Console.WriteLine($"Country: {_settings.Country}")
+        Console.WriteLine($"Method: {_settings.Method}")
+        Console.WriteLine($"Size: {_settings.Size} ({_settings.WindowWidth}x{_settings.WindowHeight})")
+        Console.WriteLine($"Athan Sound: {_settings.AthanSound}")
+        Console.WriteLine($"Reminders: Fajr Before={_reminderSettings.FajrReminder.EnabledBefore}, Dhuhr Before={_reminderSettings.DhuhrReminder.EnabledBefore}, Asr Before={_reminderSettings.AsrReminder.EnabledBefore}, Maghrib Before={_reminderSettings.MaghribReminder.EnabledBefore}, Isha Before={_reminderSettings.IshaReminder.EnabledBefore}")
+        Console.WriteLine("=======================" & vbCrLf)
+
+        ' Show location on widget
+        LblLocation.Text = $"{_settings.City}, {_settings.Country}"
+
+        ' Apply opacity settings
+        ApplyOpacitySettings()
+
+        ApplySettings()
+
+        ' Load widget visibility setting
+        Dim showWidget As String = _settingsManager.GetSetting("ShowWidget", "1")
+        _widgetVisible = (showWidget = "1")
+        Console.WriteLine($"Window_Loaded: ShowWidget setting = {showWidget}, _widgetVisible = {_widgetVisible}")
+
+        If Not _widgetVisible Then
+            Me.Hide()
+            Console.WriteLine("Window_Loaded: Widget is HIDDEN")
+            ' Show notification on startup if widget is hidden
+            ShowHideNotification()
+        Else
+            Console.WriteLine("Window_Loaded: Widget is VISIBLE")
+        End If
+
+        Me.Left = SystemParameters.WorkArea.Width - Me.Width - 20
+        Me.Top = 20
+
+        ' FORCE ALWAYS ON TOP - Set Topmost multiple times to ensure it sticks
+        Me.Topmost = True
+        Me.Topmost = True
+        Me.Activate()
+        Console.WriteLine("===========================================")
+        Console.WriteLine("WINDOW SET TO ALWAYS ON TOP (Topmost=True)")
+        Console.WriteLine("===========================================")
+
+        ' Update toggle menu text based on visibility
+        UpdateToggleMenuText(If(_widgetVisible, LocalizationService.GetString("hide_widget", "Hide Widget"), LocalizationService.GetString("show_widget_menu", "Show Widget")))
+
+        _timer = New DispatcherTimer() With {.Interval = TimeSpan.FromMilliseconds(500)} ' 500ms for smoother countdown
+        AddHandler _timer.Tick, AddressOf Timer_Tick
+        _timer.Start()
+
+        ' Initialize quote service and start quote timer
+        _quoteService = New QuoteService()
+        StartQuoteTimer()
+
+        ' Initialize tab switching timer
+        InitializeTabSwitchTimer()
+        SetInitialTabStyles()
+
+        ' Load prayer times from API
+        LoadPrayerTimesAsync()
+
+        ' Check if we're very close to the next prayer time (within 30 seconds)
+        ' This handles the case where the app starts just before a prayer time
+        CheckImmediatePrayerTime()
+
+        ' Show first run message if needed
+        If isFirstRun Then
+            ShowFirstRunMessage()
+        End If
+    End Sub
+
+    ''' <summary>
+    ''' Check if we're very close to the next prayer time when app starts
+    ''' This ensures we don't miss prayer time if app loads just before it
+    ''' </summary>
+    Private Sub CheckImmediatePrayerTime()
+        If _nextPrayerTime = Nothing Then Return
+
+        Dim timeDiff As Double = (_nextPrayerTime - DateTime.Now).TotalSeconds
+
+        ' If we're within 30 seconds of the next prayer time, start the flag
+        ' This ensures the timer will catch it
+        If timeDiff >= 0 AndAlso timeDiff <= 30 Then
+            Console.WriteLine($"[CheckImmediatePrayerTime] Close to prayer time! Diff={timeDiff:F1}s, Prayer={LblPrayer.Text}")
+            Console.WriteLine($"[CheckImmediatePrayerTime] Will trigger athan when timer catches it")
+            ' Reset flag to ensure we play
+            _hasPlayedAthanForCurrentPrayer = False
+        End If
+    End Sub
+
+    Private Sub SetInitialTabStyles()
+        ' Set initial tab colors (Current tab active by default)
+        SwitchToCurrentTab()
+    End Sub
+
+    Private Function CheckIsFirstRun() As Boolean
+        ' Check if user has completed setup (more accurate than checking city)
+        Return Not _settings.HasCompletedSetup
+    End Function
+
+    Private Sub ShowFirstRunMessage()
+        ' First, show language selection dialog
+        Dim languageDialog As New LanguageSelectionWindow()
+        languageDialog.Owner = Me
+        
+        If languageDialog.ShowDialog() = True Then
+            ' Language selected, reload localization
+            InitializeLocalization()
+            ApplyTranslations()
+        End If
+        
+        ' Now open settings with first run mode (will auto-detect location)
+        ShowSettingsWindow(firstRun:=True)
+    End Sub
+
+    Private Sub OpenFacebookPage()
+        ' Open Facebook page from version.json
+        Dim psi As New ProcessStartInfo("https://www.facebook.com/Salaty.1st") With {
+            .UseShellExecute = True
+        }
+        Process.Start(psi)
+    End Sub
+
+    ''' <summary>
+    ''' Start the Islamic quote timer
+    ''' </summary>
+    Private Sub StartQuoteTimer()
+        ' Stop existing timer if running
+        If _quoteTimer IsNot Nothing Then
+            _quoteTimer.Stop()
+        End If
+
+        ' Check if quotes are enabled
+        Dim enableQuotes As String = _settingsManager.GetSetting("EnableQuotes", "0")
+        If enableQuotes <> "1" Then
+            Return
+        End If
+
+        ' Get interval in minutes
+        Dim intervalMinutes As Integer = CInt(_settingsManager.GetSetting("QuoteInterval", "30"))
+
+        ' Start timer
+        _quoteTimer = New DispatcherTimer()
+        _quoteTimer.Interval = TimeSpan.FromMinutes(intervalMinutes)
+        AddHandler _quoteTimer.Tick, AddressOf QuoteTimer_Tick
+        _quoteTimer.Start()
+
+        Console.WriteLine($"Quote timer started: every {intervalMinutes} minutes")
+    End Sub
+
+    ''' <summary>
+    ''' Show a random Islamic quote
+    ''' </summary>
+    Private Async Sub ShowRandomQuote()
+        Try
+            Dim quote = Await _quoteService.GetRandomQuote()
+            If quote IsNot Nothing Then
+                Dim quoteWindow As New QuoteNotificationWindow(quote, 15, True)
+                quoteWindow.Owner = Me
+                quoteWindow.Show()
+                Console.WriteLine($"Quote displayed: {quote.quote.Substring(0, Math.Min(50, quote.quote.Length))}...")
+            End If
+        Catch ex As Exception
+            Console.WriteLine("Error showing quote: " & ex.Message)
+        End Try
+    End Sub
+
+    Private Sub QuoteTimer_Tick(sender As Object, e As EventArgs)
+        ShowRandomQuote()
+    End Sub
+
+#Region "Mini Tabs - Current/Previous"
+
+    Private Sub TabCurrent_Click(sender As Object, e As RoutedEventArgs)
+        ' Switch to Current tab
+        SwitchToCurrentTab()
+        ' Reset auto-switch timer
+        ResetTabSwitchTimer()
+    End Sub
+
+    Private Sub TabPrevious_Click(sender As Object, e As RoutedEventArgs)
+        ' Switch to Previous tab
+        SwitchToPreviousTab()
+        ' Reset auto-switch timer
+        ResetTabSwitchTimer()
+    End Sub
+
+    Private Sub SwitchToCurrentTab()
+        _isCurrentTab = True
+        CurrentTabContent.Visibility = Visibility.Visible
+        PreviousTabContent.Visibility = Visibility.Collapsed
+        
+        ' Update tab button styles only
+        TabCurrent.Background = New SolidColorBrush(WpfColor.FromRgb(255, 95, 95))
+        TabCurrent.Foreground = New SolidColorBrush(WpfColor.FromRgb(255, 255, 255))
+        TabPrevious.Background = New SolidColorBrush(WpfColor.FromRgb(45, 58, 74))
+        TabPrevious.Foreground = New SolidColorBrush(WpfColor.FromRgb(136, 153, 170))
+    End Sub
+
+    Private Sub SwitchToPreviousTab()
+        _isCurrentTab = False
+        CurrentTabContent.Visibility = Visibility.Collapsed
+        PreviousTabContent.Visibility = Visibility.Visible
+        
+        ' Update tab button styles only
+        TabPrevious.Background = New SolidColorBrush(WpfColor.FromRgb(61, 75, 95))
+        TabPrevious.Foreground = New SolidColorBrush(WpfColor.FromRgb(255, 255, 255))
+        TabCurrent.Background = New SolidColorBrush(WpfColor.FromRgb(45, 58, 74))
+        TabCurrent.Foreground = New SolidColorBrush(WpfColor.FromRgb(136, 153, 170))
+        
+        ' Force elapsed time update immediately
+        UpdateElapsedTime()
+    End Sub
+
+    Private Sub InitializeTabSwitchTimer()
+        _tabSwitchTimer = New DispatcherTimer()
+        _tabSwitchTimer.Interval = TimeSpan.FromSeconds(1)
+        AddHandler _tabSwitchTimer.Tick, AddressOf TabSwitchTimer_Tick
+        _tabSwitchTimer.Start()
+    End Sub
+
+    Private Sub TabSwitchTimer_Tick(sender As Object, e As EventArgs)
+        _tabSwitchCountdown -= 1
+
+        If _tabSwitchCountdown <= 0 Then
+            ' Auto-switch tabs
+            If _isCurrentTab Then
+                SwitchToPreviousTab()
+            Else
+                SwitchToCurrentTab()
+            End If
+            _tabSwitchCountdown = 10
+        End If
+    End Sub
+
+    Private Sub ResetTabSwitchTimer()
+        _tabSwitchCountdown = 10
+    End Sub
+
+    Private Sub Window_KeyDown(sender As Object, e As KeyEventArgs)
+        ' Ctrl+T to test athan notification
+        If e.Key = Key.T AndAlso (Keyboard.Modifiers And ModifierKeys.Control) = ModifierKeys.Control Then
+            e.Handled = True
+            PlayAthan()
+        End If
+    End Sub
+
+#End Region
+End Class

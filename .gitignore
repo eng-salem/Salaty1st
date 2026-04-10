@@ -1,0 +1,49 @@
+# Build outputs
+**/bin/
+**/obj/
+**/publish/
+**/*.exe
+**/*.dll
+**/*.pdb
+
+# IDE files
+**/.vs/
+**/*.suo
+**/*.user
+**/*.userprefs
+.vscode/
+.idea/
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Ignore all .env files EXCEPT .env.example
+**/*.env
+!**/.env.example
+**/secrets.json
+**/appsettings.local.json
+**/appsettings.Development.json
+
+# PowerShell test scripts (often contain credentials)
+**/*.ps1
+
+# NuGet packages
+**/packages/
+**/*.nupkg
+
+# Logs
+**/*.log
+**/logs/
+
+# Temporary files
+**/*.tmp
+**/*.bak
+**/*.cache
+
+# Test scripts with hardcoded credentials (already covered by **/*.ps1)
+
+# PNG screenshots (if they contain sensitive info)
+# Uncomment if needed:
+# salaty.first.HD*.png

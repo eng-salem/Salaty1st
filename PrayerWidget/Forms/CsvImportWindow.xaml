@@ -1,0 +1,197 @@
+<Window x:Class="CsvImportWindow"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    Title="Import CSV to Turso"
+    Height="500" Width="450"
+    WindowStyle="None"
+    AllowsTransparency="True"
+    Background="Transparent"
+    Topmost="True"
+    MouseLeftButtonDown="Window_MouseLeftButtonDown"
+    WindowStartupLocation="CenterOwner"
+    ResizeMode="NoResize"
+    ShowInTaskbar="False">
+
+    <Window.Resources>
+        <!-- Modern Button Style -->
+        <Style x:Key="ModernButton" TargetType="Button">
+            <Setter Property="Background" Value="#4FACFE"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Padding" Value="15,8"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}"
+                                CornerRadius="8"
+                                Padding="{TemplateBinding Padding}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Background" Value="#3E8CE6"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter Property="Background" Value="#2E7CD6"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Modern TextBox Style -->
+        <Style x:Key="ModernTextBox" TargetType="TextBox">
+            <Setter Property="Background" Value="#333333"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="BorderBrush" Value="#444444"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Padding" Value="10,8"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="TextBox">
+                        <Border Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="5">
+                            <ScrollViewer x:Name="PART_ContentHost" Margin="5"/>
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </Window.Resources>
+
+    <Grid Margin="20">
+        <Border CornerRadius="15" Background="#2A2A2A" BorderBrush="#44FFFFFF" BorderThickness="1">
+            <Border.Effect>
+                <DropShadowEffect Color="Black" BlurRadius="20" Opacity="0.5"/>
+            </Border.Effect>
+
+            <Grid Margin="25">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+
+                <!-- Header -->
+                <StackPanel Grid.Row="0" Margin="0,0,0,15">
+                    <TextBlock Text="📥 Import CSV Data" FontSize="20" FontWeight="Bold" Foreground="White"/>
+                    <TextBlock Text="Import data from CSV file to Turso database" FontSize="12" Foreground="#888" Margin="0,5,0,0"/>
+                </StackPanel>
+
+                <!-- Content -->
+                <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" Margin="0,0,0,15">
+                    <StackPanel>
+                        <!-- Database URL -->
+                        <TextBlock Text="Database URL" FontSize="14" FontWeight="SemiBold" Foreground="White" Margin="0,0,0,5"/>
+                        <TextBox x:Name="TxtDatabaseUrl" Style="{StaticResource ModernTextBox}" Margin="0,0,0,10"
+                                 Text="libsql://quotes-manhag.aws-eu-west-1.turso.io"/>
+
+                        <!-- Auth Token -->
+                        <TextBlock Text="Auth Token" FontSize="14" FontWeight="SemiBold" Foreground="White" Margin="0,0,0,5"/>
+                        <TextBox x:Name="TxtAuthToken" Style="{StaticResource ModernTextBox}" Margin="0,0,0,10"
+                                 Text="YOUR_TURSO_AUTH_TOKEN_HERE"
+                                 TextWrapping="Wrap" AcceptsReturn="True" Height="60"/>
+
+                        <!-- Table Name -->
+                        <TextBlock Text="Table Name" FontSize="14" FontWeight="SemiBold" Foreground="White" Margin="0,0,0,5"/>
+                        <TextBox x:Name="TxtTableName" Style="{StaticResource ModernTextBox}" Margin="0,0,0,10" Text="quotes"/>
+
+                        <!-- Column Mapping -->
+                        <TextBlock Text="CSV Column Index → Database Column" FontSize="14" FontWeight="SemiBold" Foreground="White" Margin="0,0,0,5"/>
+                        <Border Background="#333333" CornerRadius="8" Padding="10" Margin="0,0,0,10">
+                            <StackPanel>
+                                <Grid Margin="0,0,0,5">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="80"/>
+                                        <ColumnDefinition Width="30"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="CSV Index" Foreground="#AAA" FontSize="11"/>
+                                    <TextBlock Text="→" Grid.Column="1" Foreground="#AAA" FontSize="11" HorizontalAlignment="Center"/>
+                                    <TextBlock Text="DB Column" Grid.Column="2" Foreground="#AAA" FontSize="11"/>
+                                </Grid>
+                                
+                                <!-- Column Mapping Rows -->
+                                <Grid Margin="0,2,0,2">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="80"/>
+                                        <ColumnDefinition Width="30"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBox x:Name="TxtCol0" Style="{StaticResource ModernTextBox}" Text="0" Height="30"/>
+                                    <TextBlock Text="→" Grid.Column="1" Foreground="#AAA" FontSize="11" VerticalAlignment="Center" HorizontalAlignment="Center"/>
+                                    <TextBox x:Name="TxtDbCol0" Style="{StaticResource ModernTextBox}" Text="post_content" Height="30" Grid.Column="2"/>
+                                </Grid>
+                                
+                                <TextBlock Text="Add more columns in code if needed" FontSize="10" Foreground="#666" Margin="0,5,0,0" FontStyle="Italic"/>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- Options -->
+                        <CheckBox x:Name="ChkSkipHeaders" Content="Skip header row" FontSize="13" Foreground="White" Margin="0,0,0,5" IsChecked="True">
+                            <CheckBox.Template>
+                                <ControlTemplate TargetType="CheckBox">
+                                    <StackPanel Orientation="Horizontal">
+                                        <Border x:Name="CheckBoxBorder" Width="18" Height="18" CornerRadius="4"
+                                                Background="#333333" BorderBrush="#4FACFE" BorderThickness="2">
+                                            <Path x:Name="CheckMark" Data="M0,5 L9,13 L18,2" Stroke="#4FACFE" StrokeThickness="2.5"
+                                                  Visibility="Collapsed" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                        </Border>
+                                        <ContentPresenter Margin="8,0,0,0" VerticalAlignment="Center"/>
+                                    </StackPanel>
+                                    <ControlTemplate.Triggers>
+                                        <Trigger Property="IsChecked" Value="True">
+                                            <Setter TargetName="CheckMark" Property="Visibility" Value="Visible"/>
+                                        </Trigger>
+                                    </ControlTemplate.Triggers>
+                                </ControlTemplate>
+                            </CheckBox.Template>
+                        </CheckBox>
+
+                        <CheckBox x:Name="ChkCreateTable" Content="Create table if not exists" FontSize="13" Foreground="White" Margin="0,0,0,5" IsChecked="True">
+                            <CheckBox.Template>
+                                <ControlTemplate TargetType="CheckBox">
+                                    <StackPanel Orientation="Horizontal">
+                                        <Border x:Name="CheckBoxBorder" Width="18" Height="18" CornerRadius="4"
+                                                Background="#333333" BorderBrush="#4FACFE" BorderThickness="2">
+                                            <Path x:Name="CheckMark" Data="M0,5 L9,13 L18,2" Stroke="#4FACFE" StrokeThickness="2.5"
+                                                  Visibility="Collapsed" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                        </Border>
+                                        <ContentPresenter Margin="8,0,0,0" VerticalAlignment="Center"/>
+                                    </StackPanel>
+                                    <ControlTemplate.Triggers>
+                                        <Trigger Property="IsChecked" Value="True">
+                                            <Setter TargetName="CheckMark" Property="Visibility" Value="Visible"/>
+                                        </Trigger>
+                                    </ControlTemplate.Triggers>
+                                </ControlTemplate>
+                            </CheckBox.Template>
+                        </CheckBox>
+                    </StackPanel>
+                </ScrollViewer>
+
+                <!-- Buttons -->
+                <Grid Grid.Row="2">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="10"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+
+                    <Button x:Name="BtnCancel" Content="Cancel" Style="{StaticResource ModernButton}" 
+                            Background="#444444" Click="BtnCancel_Click"/>
+                    <Button x:Name="BtnImport" Content="📥 Import CSV" Style="{StaticResource ModernButton}" 
+                            Grid.Column="2" Click="BtnImport_Click"/>
+                </Grid>
+            </Grid>
+        </Border>
+    </Grid>
+</Window>

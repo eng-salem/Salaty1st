@@ -1,0 +1,139 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        mc:Ignorable="d" d:DesignWidth="200" d:DesignHeight="200"
+        x:Class="SalatyMinimal.MainWindow"
+        Title="Salaty First"
+        Width="200" Height="200"
+        Background="Transparent"
+        WindowState="Normal"
+        SystemDecorations="BorderOnly"
+        CanResize="False"
+        ShowInTaskbar="False"
+        Topmost="True">
+
+    <Border CornerRadius="100"
+            Background="#E6202530"
+            BorderBrush="#40FFFFFF"
+            BorderThickness="1"
+            Margin="10"
+            ClipToBounds="True">
+        
+        <Panel Name="MainPanel">
+            
+            <!-- Progress Ring Background -->
+            <Ellipse Name="BackgroundRing"
+                     Stroke="#30FFFFFF"
+                     StrokeThickness="4"
+                     Margin="12"/>
+            
+            <!-- Progress Ring -->
+            <Ellipse Name="ProgressArc"
+                     Stroke="#4FACFE"
+                     StrokeThickness="4"
+                     Margin="12"
+                     StrokeDashArray="0,628"
+                     StrokeDashOffset="0"/>
+            
+            <!-- Content Panel -->
+            <StackPanel HorizontalAlignment="Center" 
+                        VerticalAlignment="Center"
+                        Spacing="4"
+                        Margin="20">
+                
+                <!-- Current Prayer Name -->
+                <TextBlock x:Name="PrayerNameText"
+                           Text="FAJR" 
+                           FontSize="18" 
+                           FontWeight="SemiBold"
+                           Foreground="#FFFFFF"
+                           HorizontalAlignment="Center"
+                           TextAlignment="Center"/>
+                
+                <!-- Countdown Timer -->
+                <TextBlock x:Name="CountdownText"
+                           Text="00:00:00" 
+                           FontSize="24" 
+                           FontWeight="Light"
+                           Foreground="#4FACFE"
+                           HorizontalAlignment="Center"
+                           TextAlignment="Center"
+                           Margin="0,4,0,8"/>
+                
+                <!-- Hijri Date -->
+                <TextBlock x:Name="HijriDateText"
+                           Text="1 Ramadan 1445" 
+                           FontSize="12" 
+                           Foreground="#AAFFFFFF"
+                           HorizontalAlignment="Center"
+                           TextAlignment="Center"
+                           Margin="0,0,0,4"/>
+                
+                <!-- Elapsed Time -->
+                <TextBlock x:Name="ElapsedText"
+                           Text="Elapsed: 0m" 
+                           FontSize="10" 
+                           Foreground="#AAFFFFFF"
+                           HorizontalAlignment="Center"
+                           TextAlignment="Center"/>
+                
+            </StackPanel>
+
+            <!-- Control Buttons -->
+            <StackPanel Orientation="Horizontal"
+                        HorizontalAlignment="Right"
+                        VerticalAlignment="Top"
+                        Spacing="4"
+                        Margin="0,20,20,0">
+                
+                <Button x:Name="RefreshButton"
+                        Background="Transparent"
+                        BorderThickness="0"
+                        Padding="4"
+                        Width="20" Height="20"
+                        CornerRadius="4">
+                    <Path Data="M4,2 L4,8 L10,8 M4,8 C4,8 2,6 2,4 C2,2 4,0 6,0 C8,0 10,2 10,4 C10,6 8,8 6,8"
+                          Stroke="#AAFFFFFF"
+                          StrokeThickness="1.5"
+                          StrokeLineCap="Round"
+                          Width="12" Height="12"/>
+                </Button>
+
+                <Button x:Name="SettingsButton"
+                        Background="Transparent"
+                        BorderThickness="0"
+                        Padding="4"
+                        Width="20" Height="20"
+                        CornerRadius="4">
+                    <Path Data="M10.5,1 C9.6716,1 9,1.6716 9,2.5 C9,3.3284 9.6716,4 10.5,4 C11.3284,4 12,3.3284 12,2.5 C12,1.6716 11.3284,1 10.5,1 Z M10.5,0 C12.433,0 14,1.567 14,3.5 C14,5.433 12.433,7 10.5,7 C8.567,7 7,5.433 7,3.5 C7,1.567 8.567,0 10.5,0 Z M10.5,9 C11.3284,9 12,9.6716 12,10.5 L12,13.5 C12,14.3284 11.3284,15 10.5,15 C9.6716,15 9,14.3284 9,13.5 L9,10.5 C9,9.6716 9.6716,9 10.5,9 Z"
+                          Fill="#AAFFFFFF"
+                          Width="12" Height="12"/>
+                </Button>
+            </StackPanel>
+
+            <!-- Status Indicator -->
+            <Ellipse Name="StatusIndicator"
+                     Width="6" Height="6"
+                     HorizontalAlignment="Left"
+                     VerticalAlignment="Bottom"
+                     Margin="20"
+                     Fill="#4FACFE"
+                     Opacity="0.8"/>
+
+        </Panel>
+    </Border>
+
+    <Window.ContextMenu>
+        <ContextMenu>
+            <MenuItem Header="Refresh Prayer Times"/>
+            <MenuItem Header="Settings"/>
+            <Separator/>
+            <MenuItem Header="Always on Top"/>
+            <Separator/>
+            <MenuItem Header="Close"/>
+        </ContextMenu>
+    </Window.ContextMenu>
+
+    
+</Window>

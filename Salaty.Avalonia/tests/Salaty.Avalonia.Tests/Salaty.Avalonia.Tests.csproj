@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <AssemblyName>Salaty.Avalonia.Tests</AssemblyName>
+    <RootNamespace>Salaty.First.Tests</RootNamespace>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.8.0" />
+    <PackageReference Include="xunit" Version="2.6.2" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="2.5.4" />
+    <PackageReference Include="Avalonia.Testing" Version="11.0.7" />
+    <PackageReference Include="Microsoft.Data.Sqlite" Version="8.0.1" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Salaty.Avalonia\Salaty.Avalonia.csproj" />
+    <ProjectReference Include="..\..\src\Salaty.Avalonia.Core\Salaty.Avalonia.Core.csproj" />
+  </ItemGroup>
+</Project>
